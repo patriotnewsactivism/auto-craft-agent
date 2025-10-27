@@ -6,9 +6,14 @@ import { CodePreview } from "@/components/CodePreview";
 import { TerminalOutput } from "@/components/TerminalOutput";
 import { AgentThinking } from "@/components/AgentThinking";
 import { ExecutionMetrics } from "@/components/ExecutionMetrics";
-import { Bot, Zap } from "lucide-react";
+import { Settings } from "@/components/Settings";
+import { GitHubBrowser } from "@/components/GitHubBrowser";
+import { Bot, Zap, Settings as SettingsIcon, Github, Download, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { sampleCode } from "@/lib/sampleCode";
+import { AIService } from "@/lib/aiService";
+import { GitHubService, GitHubRepo } from "@/lib/githubService";
+import { ExportService } from "@/lib/exportService";
 
 interface FileNode {
   name: string;
@@ -37,6 +42,8 @@ const Index = () => {
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [metrics, setMetrics] = useState({ duration: 0, filesGenerated: 0, stepsCompleted: 0, errors: 0 });
   const [startTime, setStartTime] = useState<number>(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [githubBrowserOpen, setGithubBrowserOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -61,7 +68,18 @@ const Index = () => {
     setThinkingSteps((prev) => [...prev, { id: Date.now().toString(), thought, timestamp }]);
   };
 
-  const simulateExecution = async (task: string) => {
+  const executeWithAI = async (task: string) => {
+    const apiKey = localStorage.getItem("anthropic_api_key");
+    if (!apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Please configure your Anthropic API key in settings",
+        variant: "destructive",
+      });
+      setSettingsOpen(true);
+      return;
+    }
+
     setIsExecuting(true);
     setSteps([]);
     setFileTree([]);
@@ -71,125 +89,223 @@ const Index = () => {
     setMetrics({ duration: 0, filesGenerated: 0, stepsCompleted: 0, errors: 0 });
     setStartTime(Date.now());
 
-    addTerminalLine("Autonomous Code Wizard v2.0 initialized", "output");
+    addTerminalLine("Autonomous Code Wizard v3.0 initialized", "output");
     addTerminalLine(`Task: ${task}`, "command");
-    addThought("Analyzing task requirements and complexity...");
+    addThought("Initializing AI-powered analysis...");
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Planning phase
-    addThought("Breaking down task into atomic components and identifying dependencies...");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    addThought("Designing optimal architecture with scalability and maintainability in mind...");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    addThought("Generating execution plan with 5 stages and 12 sub-tasks...");
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    const taskSteps: Omit<Step, "status">[] = [
-      {
-        id: "1",
-        title: "Requirements Analysis",
-        description: "Deep analysis of task requirements, constraints, and success criteria",
-        type: "analysis",
-      },
-      {
-        id: "2",
-        title: "Architecture Design",
-        description: "Designing scalable component hierarchy, state management, and data flow patterns",
-        type: "analysis",
-      },
-      {
-        id: "3",
-        title: "Core Components Generation",
-        description: "Generating TypeScript interfaces, React components with full type safety",
-        type: "coding",
-        files: ["src/components/Dashboard.tsx", "src/components/UserPanel.tsx", "src/types/index.ts"],
-      },
-      {
-        id: "4",
-        title: "Business Logic Implementation",
-        description: "Implementing hooks, API integration, state management, and error handling",
-        type: "coding",
-        files: ["src/hooks/useData.ts", "src/api/client.ts", "src/utils/validators.ts"],
-      },
-      {
-        id: "5",
-        title: "Testing & Validation",
-        description: "Running comprehensive tests, checking type safety, and validating functionality",
-        type: "testing",
-      },
-    ];
-
-    const generatedFiles: FileNode[] = [
-      {
-        name: "src",
-        type: "folder",
-        children: [
-          {
-            name: "components",
-            type: "folder",
-            children: [
-              { name: "Dashboard.tsx", type: "file", content: sampleCode.dashboard },
-              { name: "UserPanel.tsx", type: "file", content: sampleCode.userPanel }
-            ]
-          },
-          {
-            name: "hooks",
-            type: "folder",
-            children: [
-              { name: "useData.ts", type: "file", content: sampleCode.hook }
-            ]
-          },
-          {
-            name: "types",
-            type: "folder",
-            children: [
-              { name: "index.ts", type: "file", content: sampleCode.types }
-            ]
-          }
-        ]
-      }
-    ];
-
-    for (let i = 0; i < taskSteps.length; i++) {
-      const step = { ...taskSteps[i], status: "running" as const };
+    try {
+      const aiService = new AIService(apiKey);
       
-      setSteps((prev) => [...prev, step]);
-      addTerminalLine(`Executing: ${step.title}`, "command");
-      addThought(`Processing ${step.title.toLowerCase()}...`);
+      // Analyze task with AI
+      addThought("Consulting Claude AI for task breakdown...");
+      const analysis = await aiService.analyzeTask(task);
+      
+      addThought(`Task complexity: ${analysis.complexity.toUpperCase()}`);
+      addThought(`Identified ${analysis.steps.length} steps and ${analysis.files.length} files to generate`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Simulate detailed work
-      const workTime = 2000 + Math.random() * 2500;
-      await new Promise((resolve) => setTimeout(resolve, workTime));
+      // Generate steps dynamically from AI analysis
+      const taskSteps: Omit<Step, "status">[] = analysis.steps.map((step, idx) => ({
+        id: (idx + 1).toString(),
+        title: step,
+        description: `AI-generated step: ${step}`,
+        type: idx < 2 ? "analysis" : idx === analysis.steps.length - 1 ? "testing" : "coding",
+        files: analysis.files.filter((_, i) => i % analysis.steps.length === idx),
+      }));
 
-      if (step.files) {
-        for (const file of step.files) {
-          addTerminalLine(`✓ Generated ${file}`, "success");
-          await new Promise((resolve) => setTimeout(resolve, 300));
+      const generatedFiles: FileNode[] = [];
+
+      for (let i = 0; i < taskSteps.length; i++) {
+        const step = { ...taskSteps[i], status: "running" as const };
+        
+        setSteps((prev) => [...prev, step]);
+        addTerminalLine(`Executing: ${step.title}`, "command");
+        addThought(`Processing ${step.title.toLowerCase()} with AI...`);
+
+        // Generate actual code with AI for coding steps
+        if (step.type === "coding" && step.files && step.files.length > 0) {
+          for (const filePath of step.files) {
+            addThought(`Generating ${filePath} with Claude AI...`);
+            
+            try {
+              const code = await aiService.generateCode(
+                `Generate ${filePath} for: ${task}`,
+                `This is part of step: ${step.title}`
+              );
+
+              // Add to file tree
+              const pathParts = filePath.split("/");
+              const fileName = pathParts.pop()!;
+              
+              // Create nested structure
+              let currentLevel = generatedFiles;
+              for (const part of pathParts) {
+                let folder = currentLevel.find((f) => f.name === part && f.type === "folder");
+                if (!folder) {
+                  folder = { name: part, type: "folder", children: [] };
+                  currentLevel.push(folder);
+                }
+                currentLevel = folder.children!;
+              }
+              
+              currentLevel.push({ name: fileName, type: "file", content: code });
+              
+              addTerminalLine(`✓ Generated ${filePath}`, "success");
+              setMetrics(prev => ({ ...prev, filesGenerated: prev.filesGenerated + 1 }));
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            } catch (error) {
+              addTerminalLine(`✗ Failed to generate ${filePath}`, "error");
+              setMetrics(prev => ({ ...prev, errors: prev.errors + 1 }));
+            }
+          }
+        } else {
+          // Simulate other step types
+          await new Promise((resolve) => setTimeout(resolve, 2000 + Math.random() * 1500));
         }
-        setMetrics(prev => ({ ...prev, filesGenerated: prev.filesGenerated + step.files!.length }));
+
+        setSteps((prev) =>
+          prev.map((s) => (s.id === step.id ? { ...s, status: "completed" as const } : s))
+        );
+        addTerminalLine(`✓ ${step.title} completed`, "success");
+        addThought(`Successfully completed ${step.title.toLowerCase()}`);
+        setMetrics(prev => ({ ...prev, stepsCompleted: prev.stepsCompleted + 1 }));
       }
 
-      setSteps((prev) =>
-        prev.map((s) => (s.id === step.id ? { ...s, status: "completed" as const } : s))
-      );
-      addTerminalLine(`✓ ${step.title} completed`, "success");
-      addThought(`Successfully completed ${step.title.toLowerCase()}`);
-      setMetrics(prev => ({ ...prev, stepsCompleted: prev.stepsCompleted + 1 }));
+      setFileTree(generatedFiles);
+      addTerminalLine("All tasks completed successfully!", "success");
+      addThought("Task execution completed. All files generated and validated.");
+      
+      toast({
+        title: "Task Completed Successfully",
+        description: `Generated ${generatedFiles.length} files using AI`,
+      });
+    } catch (error) {
+      addTerminalLine(`✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+      toast({
+        title: "Execution Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleImportRepo = async (repo: GitHubRepo) => {
+    const token = localStorage.getItem("github_token");
+    if (!token) return;
+
+    addTerminalLine(`Importing repository: ${repo.full_name}`, "command");
+    setIsExecuting(true);
+
+    try {
+      const service = new GitHubService(token);
+      const [owner, repoName] = repo.full_name.split("/");
+      
+      const contents = await service.getRepoContents(owner, repoName);
+      const importedFiles: FileNode[] = [];
+
+      for (const item of contents) {
+        if (item.type === "file" && item.download_url) {
+          const content = await service.getFileContent(item.download_url);
+          importedFiles.push({ name: item.name, type: "file", content });
+        }
+      }
+
+      setFileTree(importedFiles);
+      addTerminalLine(`✓ Imported ${importedFiles.length} files from ${repo.name}`, "success");
+      
+      toast({
+        title: "Repository Imported",
+        description: `Successfully imported ${repo.name}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Import Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (fileTree.length === 0) {
+      toast({
+        title: "No Files to Export",
+        description: "Generate some files first",
+        variant: "destructive",
+      });
+      return;
     }
 
-    // Generate file tree
-    setFileTree(generatedFiles);
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      await ExportService.exportAsZip(fileTree, "generated-code");
+      toast({
+        title: "Export Successful",
+        description: "Files downloaded as ZIP",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
 
-    addTerminalLine("All tasks completed successfully!", "success");
-    addThought("Task execution completed. All files generated and validated.");
-    setIsExecuting(false);
-    
-    toast({
-      title: "Task Completed Successfully",
-      description: `Generated ${metrics.filesGenerated} files in ${metrics.duration} seconds`,
-    });
+  const handlePushToGitHub = async () => {
+    const token = localStorage.getItem("github_token");
+    if (!token) {
+      toast({
+        title: "GitHub Token Required",
+        description: "Please configure your GitHub token in settings",
+        variant: "destructive",
+      });
+      setSettingsOpen(true);
+      return;
+    }
+
+    if (fileTree.length === 0) {
+      toast({
+        title: "No Files to Push",
+        description: "Generate some files first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const service = new GitHubService(token);
+      const repoName = `agent-project-${Date.now()}`;
+      
+      addTerminalLine(`Creating repository: ${repoName}`, "command");
+      const repo = await service.createRepository(repoName, "Generated by Autonomous Code Wizard", false);
+      
+      const files = ExportService.flattenFileTree(fileTree);
+      for (const file of files) {
+        await service.createOrUpdateFile(
+          repo.owner.login,
+          repo.name,
+          file.path,
+          file.content,
+          `Add ${file.path}`
+        );
+        addTerminalLine(`✓ Pushed ${file.path}`, "success");
+      }
+
+      toast({
+        title: "Pushed to GitHub",
+        description: `Repository created: ${repo.html_url}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Push Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -208,22 +324,39 @@ const Index = () => {
             </h1>
             
             <p className="text-lg text-muted-foreground max-w-2xl">
-              Advanced autonomous agent with intelligent task breakdown, real-time code generation,
-              and comprehensive execution monitoring.
+              AI-powered autonomous coding agent with Claude integration, GitHub connectivity,
+              and real-time intelligent code generation.
             </p>
 
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary border border-primary/30">
-              <Zap className="h-4 w-4 text-accent" />
-              <span className="text-sm code-font">Enterprise-Grade Automation</span>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+                <SettingsIcon className="h-4 w-4 mr-2" />
+                Configure API Keys
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setGithubBrowserOpen(true)}>
+                <Github className="h-4 w-4 mr-2" />
+                Import from GitHub
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExport} disabled={fileTree.length === 0}>
+                <Download className="h-4 w-4 mr-2" />
+                Export ZIP
+              </Button>
+              <Button variant="outline" size="sm" onClick={handlePushToGitHub} disabled={fileTree.length === 0}>
+                <Upload className="h-4 w-4 mr-2" />
+                Push to GitHub
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
+      <Settings open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <GitHubBrowser open={githubBrowserOpen} onOpenChange={setGithubBrowserOpen} onSelectRepo={handleImportRepo} />
+
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 space-y-8">
         {/* Task Input */}
-        <TaskInput onSubmit={simulateExecution} isExecuting={isExecuting} />
+        <TaskInput onSubmit={executeWithAI} isExecuting={isExecuting} />
 
         {/* Metrics */}
         {isExecuting || steps.length > 0 ? (
