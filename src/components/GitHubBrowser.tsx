@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ export const GitHubBrowser = ({ open, onOpenChange, onSelectRepo }: GitHubBrowse
     if (open) {
       loadRepositories();
     }
-  }, [open]);
+  }, [open, loadRepositories]);
 
   useEffect(() => {
     if (search) {
@@ -39,7 +39,7 @@ export const GitHubBrowser = ({ open, onOpenChange, onSelectRepo }: GitHubBrowse
     }
   }, [search, repos]);
 
-  const loadRepositories = async () => {
+  const loadRepositories = useCallback(async () => {
     const token = localStorage.getItem("github_token");
     if (!token) {
       toast({
@@ -66,7 +66,7 @@ export const GitHubBrowser = ({ open, onOpenChange, onSelectRepo }: GitHubBrowse
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
