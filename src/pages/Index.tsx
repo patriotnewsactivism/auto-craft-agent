@@ -13,8 +13,9 @@ import { Bot, Zap, Settings as SettingsIcon, Github, Download, Upload } from "lu
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AIService } from "@/lib/aiService";
-import { GitHubService, GitHubRepo } from "@/lib/githubService";
+import { GitHubService, GitHubRepo, SyncConflict } from "@/lib/githubService";
 import { ExportService } from "@/lib/exportService";
+import { SyncManager } from "@/lib/syncManager";
 
 interface FileNode {
   name: string;
@@ -453,6 +454,20 @@ const Index = () => {
         {/* Task Input */}
         <TaskInput onSubmit={executeWithAI} isExecuting={isExecuting} />
 
+        {/* Sync Status - Always visible when connected */}
+        {(connectedRepo || syncStatus.connected) && (
+          <SyncStatus
+            repo={connectedRepo}
+            branch={currentBranch}
+            status={syncStatus}
+            onSync={handleSync}
+            onForceSync={handleForceSync}
+            onDisconnect={handleDisconnect}
+            isLoading={isLoading}
+            progress={syncProgress}
+          />
+        )}
+
         {/* Metrics */}
         {isExecuting || steps.length > 0 ? (
           <ExecutionMetrics {...metrics} />
@@ -463,40 +478,57 @@ const Index = () => {
           <AgentThinking steps={thinkingSteps} isThinking={isExecuting} />
         )}
 
-        {/* Main Execution View */}
-        {steps.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Steps & Terminal */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="space-y-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-primary" />
-                  Execution Pipeline
-                </h2>
-                {steps.map((step, index) => (
-                  <ExecutionStep key={step.id} step={step} index={index} />
-                ))}
-              </div>
-
-              <TerminalOutput lines={terminalLines} />
-            </div>
-
-            {/* Right Column - Files & Code */}
-            <div className="space-y-6">
-              {fileTree.length > 0 && (
-                <FileTreeView files={fileTree} onFileSelect={setSelectedFile} />
-              )}
-
-              {selectedFile && selectedFile.content && (
-                <CodePreview 
-                  fileName={selectedFile.name}
-                  code={selectedFile.content}
-                  language="typescript"
-                />
-              )}
-            </div>
+        {/* Main Execution View or File Browser */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Steps & Terminal or File Tree */}
+          <div className="lg:col-span-2 space-y-6">
+            {steps.length > 0 ? (
+              <>
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" />
+                    Execution Pipeline
+                  </h2>
+                  {steps.map((step, index) => (
+                    <ExecutionStep key={step.id} step={step} index={index} />
+                  ))}
+                </div>
+                <TerminalOutput lines={terminalLines} />
+              </>
+            ) : (
+              fileTree.length > 0 && (
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <GitBranch className="h-5 w-5 text-primary" />
+                    Project Files
+                    {connectedRepo && (
+                      <span className="text-sm font-normal text-muted-foreground">
+                        ({connectedRepo.name}/{currentBranch})
+                      </span>
+                    )}
+                  </h2>
+                  <FileTreeView files={fileTree} onFileSelect={setSelectedFile} />
+                </div>
+              )
+            )}
           </div>
-        )}
+
+          {/* Right Column - Code Preview or Sync Status */}
+          <div className="space-y-6">
+            {selectedFile && selectedFile.content && (
+              <CodePreview 
+                fileName={selectedFile.name}
+                code={selectedFile.content}
+                language="typescript"
+              />
+            )}
+
+            {/* Show terminal if no execution is running but we have terminal content */}
+            {!isExecuting && steps.length === 0 && terminalLines.length > 0 && (
+              <TerminalOutput lines={terminalLines} />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

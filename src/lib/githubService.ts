@@ -8,6 +8,9 @@ export interface GitHubRepo {
   updated_at: string;
   language: string | null;
   stargazers_count: number;
+  default_branch: string;
+  clone_url: string;
+  ssh_url: string;
 }
 
 export interface GitHubContent {
@@ -16,6 +19,51 @@ export interface GitHubContent {
   type: "file" | "dir";
   download_url?: string;
   content?: string;
+  sha: string;
+  size: number;
+}
+
+export interface GitHubBranch {
+  name: string;
+  commit: {
+    sha: string;
+    url: string;
+  };
+  protected: boolean;
+}
+
+export interface GitHubCommit {
+  sha: string;
+  commit: {
+    author: {
+      name: string;
+      email: string;
+      date: string;
+    };
+    message: string;
+  };
+  author: {
+    login: string;
+    avatar_url: string;
+  } | null;
+}
+
+export interface SyncConflict {
+  path: string;
+  localContent: string;
+  remoteContent: string;
+  localSha?: string;
+  remoteSha: string;
+  type: 'content' | 'deletion' | 'creation';
+}
+
+export interface SyncStatus {
+  connected: boolean;
+  lastSync: Date | null;
+  pendingChanges: number;
+  conflicts: SyncConflict[];
+  currentBranch: string;
+  status: 'synced' | 'pending' | 'conflicted' | 'error';
 }
 
 const GITHUB_API = "https://api.github.com";
@@ -76,12 +124,14 @@ export class GitHubService {
     path: string,
     content: string,
     message: string,
-    sha?: string
+    sha?: string,
+    branch: string = "main"
   ) {
     const encodedContent = btoa(unescape(encodeURIComponent(content)));
-    const body: { message: string; content: string; sha?: string } = {
+    const body: { message: string; content: string; sha?: string; branch?: string } = {
       message,
       content: encodedContent,
+      branch,
     };
     if (sha) body.sha = sha;
 
