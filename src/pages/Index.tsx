@@ -96,24 +96,6 @@ const Index = () => {
     localStorage.setItem("sync_interval", String(syncInterval));
   }, [syncInterval]);
 
-  // Auto-sync effect
-  useEffect(() => {
-    if (!autoSyncEnabled || !connectedRepo) return;
-
-    const performAutoSync = async () => {
-      if (syncInFlightRef.current || isSyncing) return;
-      syncInFlightRef.current = true;
-      try {
-        await handleBidirectionalSync();
-      } finally {
-        syncInFlightRef.current = false;
-      }
-    };
-
-    const interval = setInterval(performAutoSync, syncInterval);
-    return () => clearInterval(interval);
-  }, [autoSyncEnabled, connectedRepo, syncInterval, isSyncing, handleBidirectionalSync]);
-
   const addTerminalLine = useCallback((text: string, type: TerminalLine["type"]) => {
     setTerminalLines((prev) => [...prev, { text, type }]);
   }, []);
@@ -370,6 +352,24 @@ const Index = () => {
     // Then push local changes
     await handleSyncToGitHub();
   }, [connectedRepo, handleSyncFromGitHub, handleSyncToGitHub]);
+
+  // Auto-sync effect (placed after handleBidirectionalSync declaration)
+  useEffect(() => {
+    if (!autoSyncEnabled || !connectedRepo) return;
+
+    const performAutoSync = async () => {
+      if (syncInFlightRef.current || isSyncing) return;
+      syncInFlightRef.current = true;
+      try {
+        await handleBidirectionalSync();
+      } finally {
+        syncInFlightRef.current = false;
+      }
+    };
+
+    const interval = setInterval(performAutoSync, syncInterval);
+    return () => clearInterval(interval);
+  }, [autoSyncEnabled, connectedRepo, syncInterval, isSyncing, handleBidirectionalSync]);
 
   const handleExport = async () => {
     if (fileTree.length === 0) {
