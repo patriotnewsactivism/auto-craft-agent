@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { TaskInput } from "@/components/TaskInput";
 import { ExecutionStep, Step } from "@/components/ExecutionStep";
 import { FileTreeView } from "@/components/FileTreeView";
@@ -8,12 +8,15 @@ import { AgentThinking } from "@/components/AgentThinking";
 import { ExecutionMetrics } from "@/components/ExecutionMetrics";
 import { Settings } from "@/components/Settings";
 import { GitHubBrowser } from "@/components/GitHubBrowser";
-import { Bot, Zap, Settings as SettingsIcon, Github, Download, Upload } from "lucide-react";
+import { SyncStatus } from "@/components/SyncStatus";
+import { ConflictResolver } from "@/components/ConflictResolver";
+import { Bot, Zap, Settings as SettingsIcon, Github, Download, Upload, GitBranch, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AIService } from "@/lib/aiService";
-import { GitHubService, GitHubRepo } from "@/lib/githubService";
+import { GitHubService, GitHubRepo, SyncConflict } from "@/lib/githubService";
 import { ExportService } from "@/lib/exportService";
+import { SyncManager } from "@/lib/syncManager";
 
 interface FileNode {
   name: string;
@@ -44,6 +47,24 @@ const Index = () => {
   const [startTime, setStartTime] = useState<number>(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [githubBrowserOpen, setGithubBrowserOpen] = useState(false);
+  
+  // New sync-related state
+  const [syncManager, setSyncManager] = useState<SyncManager | null>(null);
+  const [syncStatus, setSyncStatus] = useState<any>({
+    connected: false,
+    lastSync: null,
+    pendingChanges: 0,
+    conflicts: [],
+    currentBranch: 'main',
+    status: 'synced'
+  });
+  const [connectedRepo, setConnectedRepo] = useState<GitHubRepo | null>(null);
+  const [currentBranch, setCurrentBranch] = useState<string>('main');
+  const [isLoading, setIsLoading] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [conflictResolverOpen, setConflictResolverOpen] = useState(false);
+  const [pendingConflicts, setPendingConflicts] = useState<SyncConflict[]>([]);
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -58,6 +79,47 @@ const Index = () => {
     }
     return () => clearInterval(interval);
   }, [isExecuting, startTime]);
+
+  // Initialize sync manager when GitHub token is available
+  useEffect(() => {
+    const token = localStorage.getItem("github_token");
+    if (token && !syncManager) {
+      const manager = new SyncManager(token, {
+        autoSyncInterval: 30000,
+        conflictResolutionMode: 'manual',
+        enableRealTimeSync: true
+      });
+
+      // Set up status listener
+      const unsubscribe = manager.onStatusChange((status) => {
+        setSyncStatus(status);
+        if (status.conflicts.length > 0) {
+          setPendingConflicts(status.conflicts);
+          setConflictResolverOpen(true);
+        }
+      });
+
+      // Set up progress listener
+      const unsubscribeProgress = manager.onProgress((progress) => {
+        setSyncProgress(progress);
+      });
+
+      setSyncManager(manager);
+
+      return () => {
+        unsubscribe();
+        unsubscribeProgress();
+        manager.destroy();
+      };
+    }
+  }, [syncManager]);
+
+  // Update sync manager when files change
+  useEffect(() => {
+    if (syncManager && fileTree.length > 0) {
+      syncManager.updateLocalFiles(fileTree);
+    }
+  }, [syncManager, fileTree]);
 
   const addTerminalLine = (text: string, type: TerminalLine["type"]) => {
     setTerminalLines((prev) => [...prev, { text, type }]);
@@ -191,37 +253,74 @@ const Index = () => {
     }
   };
 
-  const handleImportRepo = async (repo: GitHubRepo) => {
+  const handleImportRepo = async (repo: GitHubRepo, branch?: string, mode?: 'import' | 'sync') => {
     const token = localStorage.getItem("github_token");
     if (!token) return;
 
-    addTerminalLine(`Importing repository: ${repo.full_name}`, "command");
+    const selectedBranch = branch || repo.default_branch || 'main';
+    const isSync = mode === 'sync';
+
+    addTerminalLine(`${isSync ? 'Connecting to' : 'Importing'} repository: ${repo.full_name} (${selectedBranch})`, "command");
     setIsExecuting(true);
 
     try {
       const service = new GitHubService(token);
       const [owner, repoName] = repo.full_name.split("/");
       
-      const contents = await service.getRepoContents(owner, repoName);
-      const importedFiles: FileNode[] = [];
+      // Get repository contents recursively
+      const getContentsRecursive = async (path = ""): Promise<FileNode[]> => {
+        const contents = await service.getRepoContents(owner, repoName, path);
+        const files: FileNode[] = [];
 
-      for (const item of contents) {
-        if (item.type === "file" && item.download_url) {
-          const content = await service.getFileContent(item.download_url);
-          importedFiles.push({ name: item.name, type: "file", content });
+        for (const item of Array.isArray(contents) ? contents : [contents]) {
+          if (item.type === "file" && item.download_url) {
+            const content = await service.getFileContent(item.download_url);
+            files.push({ 
+              name: item.name, 
+              type: "file", 
+              content,
+              path: item.path,
+              sha: item.sha
+            });
+          } else if (item.type === "dir") {
+            const subFiles = await getContentsRecursive(item.path);
+            if (subFiles.length > 0) {
+              files.push({
+                name: item.name,
+                type: "folder",
+                children: subFiles,
+                path: item.path
+              });
+            }
+          }
         }
-      }
+        return files;
+      };
 
+      const importedFiles = await getContentsRecursive();
       setFileTree(importedFiles);
-      addTerminalLine(`✓ Imported ${importedFiles.length} files from ${repo.name}`, "success");
-      
-      toast({
-        title: "Repository Imported",
-        description: `Successfully imported ${repo.name}`,
-      });
+
+      if (isSync && syncManager) {
+        // Connect to sync manager
+        await syncManager.connect(repo, selectedBranch);
+        setConnectedRepo(repo);
+        setCurrentBranch(selectedBranch);
+        
+        addTerminalLine(`✓ Connected to ${repo.name} with real-time sync enabled`, "success");
+        toast({
+          title: "Repository Connected",
+          description: `Successfully connected to ${repo.name} with bidirectional sync`,
+        });
+      } else {
+        addTerminalLine(`✓ Imported ${importedFiles.length} files from ${repo.name}`, "success");
+        toast({
+          title: "Repository Imported",
+          description: `Successfully imported ${repo.name}`,
+        });
+      }
     } catch (error) {
       toast({
-        title: "Import Failed",
+        title: isSync ? "Connection Failed" : "Import Failed",
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
@@ -308,6 +407,117 @@ const Index = () => {
     }
   };
 
+  // New sync-related handlers
+  const handleSync = useCallback(async () => {
+    if (!syncManager) return;
+
+    setIsLoading(true);
+    try {
+      const result = await syncManager.sync();
+      if (result.conflicts.length > 0) {
+        toast({
+          title: "Conflicts Detected",
+          description: `${result.conflicts.length} conflicts need resolution`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Sync Complete",
+          description: "Repository synchronized successfully",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Sync Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [syncManager, toast]);
+
+  const handleForceSync = useCallback(async () => {
+    if (!syncManager) return;
+
+    setIsLoading(true);
+    try {
+      await syncManager.sync(true);
+      toast({
+        title: "Force Sync Complete",
+        description: "Repository force synchronized successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Force Sync Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [syncManager, toast]);
+
+  const handleDisconnect = useCallback(() => {
+    if (syncManager) {
+      syncManager.disconnect();
+      setConnectedRepo(null);
+      setCurrentBranch('main');
+      toast({
+        title: "Disconnected",
+        description: "Repository sync disconnected",
+      });
+    }
+  }, [syncManager, toast]);
+
+  const handleResolveConflict = useCallback(async (
+    conflict: SyncConflict, 
+    resolution: 'local' | 'remote' | 'merged', 
+    mergedContent?: string
+  ) => {
+    if (!syncManager) return;
+
+    try {
+      await syncManager.resolveConflicts([{ conflict, resolution, mergedContent }]);
+      toast({
+        title: "Conflict Resolved",
+        description: `Resolved conflict in ${conflict.path}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Resolution Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  }, [syncManager, toast]);
+
+  const handleResolveAllConflicts = useCallback(async (
+    resolutions: Array<{
+      conflict: SyncConflict;
+      resolution: 'local' | 'remote' | 'merged';
+      mergedContent?: string;
+    }>
+  ) => {
+    if (!syncManager) return;
+
+    try {
+      await syncManager.resolveConflicts(resolutions);
+      setPendingConflicts([]);
+      setConflictResolverOpen(false);
+      toast({
+        title: "All Conflicts Resolved",
+        description: `Resolved ${resolutions.length} conflicts successfully`,
+      });
+    } catch (error) {
+      toast({
+        title: "Resolution Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  }, [syncManager, toast]);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -335,7 +545,7 @@ const Index = () => {
               </Button>
               <Button variant="outline" size="sm" onClick={() => setGithubBrowserOpen(true)}>
                 <Github className="h-4 w-4 mr-2" />
-                Import from GitHub
+                {connectedRepo ? 'Switch Repository' : 'Connect Repository'}
               </Button>
               <Button variant="outline" size="sm" onClick={handleExport} disabled={fileTree.length === 0}>
                 <Download className="h-4 w-4 mr-2" />
@@ -345,6 +555,12 @@ const Index = () => {
                 <Upload className="h-4 w-4 mr-2" />
                 Push to GitHub
               </Button>
+              {connectedRepo && (
+                <Button variant="outline" size="sm" onClick={handleSync} disabled={isLoading}>
+                  <Workflow className="h-4 w-4 mr-2" />
+                  Sync Now
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -352,11 +568,32 @@ const Index = () => {
 
       <Settings open={settingsOpen} onOpenChange={setSettingsOpen} />
       <GitHubBrowser open={githubBrowserOpen} onOpenChange={setGithubBrowserOpen} onSelectRepo={handleImportRepo} />
+      <ConflictResolver 
+        open={conflictResolverOpen} 
+        onOpenChange={setConflictResolverOpen}
+        conflicts={pendingConflicts}
+        onResolveConflict={handleResolveConflict}
+        onResolveAll={handleResolveAllConflicts}
+      />
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 space-y-8">
         {/* Task Input */}
         <TaskInput onSubmit={executeWithAI} isExecuting={isExecuting} />
+
+        {/* Sync Status - Always visible when connected */}
+        {(connectedRepo || syncStatus.connected) && (
+          <SyncStatus
+            repo={connectedRepo}
+            branch={currentBranch}
+            status={syncStatus}
+            onSync={handleSync}
+            onForceSync={handleForceSync}
+            onDisconnect={handleDisconnect}
+            isLoading={isLoading}
+            progress={syncProgress}
+          />
+        )}
 
         {/* Metrics */}
         {isExecuting || steps.length > 0 ? (
@@ -368,40 +605,57 @@ const Index = () => {
           <AgentThinking steps={thinkingSteps} isThinking={isExecuting} />
         )}
 
-        {/* Main Execution View */}
-        {steps.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Steps & Terminal */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="space-y-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-primary" />
-                  Execution Pipeline
-                </h2>
-                {steps.map((step, index) => (
-                  <ExecutionStep key={step.id} step={step} index={index} />
-                ))}
-              </div>
-
-              <TerminalOutput lines={terminalLines} />
-            </div>
-
-            {/* Right Column - Files & Code */}
-            <div className="space-y-6">
-              {fileTree.length > 0 && (
-                <FileTreeView files={fileTree} onFileSelect={setSelectedFile} />
-              )}
-
-              {selectedFile && selectedFile.content && (
-                <CodePreview 
-                  fileName={selectedFile.name}
-                  code={selectedFile.content}
-                  language="typescript"
-                />
-              )}
-            </div>
+        {/* Main Execution View or File Browser */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Steps & Terminal or File Tree */}
+          <div className="lg:col-span-2 space-y-6">
+            {steps.length > 0 ? (
+              <>
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" />
+                    Execution Pipeline
+                  </h2>
+                  {steps.map((step, index) => (
+                    <ExecutionStep key={step.id} step={step} index={index} />
+                  ))}
+                </div>
+                <TerminalOutput lines={terminalLines} />
+              </>
+            ) : (
+              fileTree.length > 0 && (
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <GitBranch className="h-5 w-5 text-primary" />
+                    Project Files
+                    {connectedRepo && (
+                      <span className="text-sm font-normal text-muted-foreground">
+                        ({connectedRepo.name}/{currentBranch})
+                      </span>
+                    )}
+                  </h2>
+                  <FileTreeView files={fileTree} onFileSelect={setSelectedFile} />
+                </div>
+              )
+            )}
           </div>
-        )}
+
+          {/* Right Column - Code Preview or Sync Status */}
+          <div className="space-y-6">
+            {selectedFile && selectedFile.content && (
+              <CodePreview 
+                fileName={selectedFile.name}
+                code={selectedFile.content}
+                language="typescript"
+              />
+            )}
+
+            {/* Show terminal if no execution is running but we have terminal content */}
+            {!isExecuting && steps.length === 0 && terminalLines.length > 0 && (
+              <TerminalOutput lines={terminalLines} />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
