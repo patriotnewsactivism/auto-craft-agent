@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { TaskInput } from "@/components/TaskInput";
 import { ExecutionStep, Step } from "@/components/ExecutionStep";
 import { FileTreeView } from "@/components/FileTreeView";
@@ -50,6 +50,7 @@ const Index = () => {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [syncInterval, setSyncInterval] = useState(60000); // 1 minute default
+  const syncInFlightRef = useRef(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -97,26 +98,25 @@ const Index = () => {
 
   // Auto-sync effect
   useEffect(() => {
-    let inFlight = false;
     if (!autoSyncEnabled || !connectedRepo) return;
 
     const performAutoSync = async () => {
-      if (inFlight || isSyncing) return;
-      inFlight = true;
+      if (syncInFlightRef.current || isSyncing) return;
+      syncInFlightRef.current = true;
       try {
         await handleBidirectionalSync();
       } finally {
-        inFlight = false;
+        syncInFlightRef.current = false;
       }
     };
 
     const interval = setInterval(performAutoSync, syncInterval);
     return () => clearInterval(interval);
-  }, [autoSyncEnabled, connectedRepo, syncInterval, isSyncing]);
+  }, [autoSyncEnabled, connectedRepo, syncInterval, isSyncing, handleBidirectionalSync]);
 
-  const addTerminalLine = (text: string, type: TerminalLine["type"]) => {
+  const addTerminalLine = useCallback((text: string, type: TerminalLine["type"]) => {
     setTerminalLines((prev) => [...prev, { text, type }]);
-  };
+  }, []);
 
   const addThought = (thought: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -259,7 +259,7 @@ const Index = () => {
     await handleSyncFromGitHub(repo);
   };
 
-  const handleSyncFromGitHub = async (repo?: GitHubRepo) => {
+  const handleSyncFromGitHub = useCallback(async (repo?: GitHubRepo) => {
     const targetRepo = repo || connectedRepo;
     if (!targetRepo) return;
 
@@ -320,9 +320,9 @@ const Index = () => {
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [connectedRepo, toast, addTerminalLine]);
 
-  const handleSyncToGitHub = async () => {
+  const handleSyncToGitHub = useCallback(async () => {
     if (!connectedRepo || fileTree.length === 0) return;
 
     const token = localStorage.getItem("github_token");
@@ -359,9 +359,9 @@ const Index = () => {
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [connectedRepo, fileTree, toast, addTerminalLine]);
 
-  const handleBidirectionalSync = async () => {
+  const handleBidirectionalSync = useCallback(async () => {
     if (!connectedRepo) return;
     
     // First pull from GitHub
@@ -369,7 +369,7 @@ const Index = () => {
     
     // Then push local changes
     await handleSyncToGitHub();
-  };
+  }, [connectedRepo, handleSyncFromGitHub, handleSyncToGitHub]);
 
   const handleExport = async () => {
     if (fileTree.length === 0) {

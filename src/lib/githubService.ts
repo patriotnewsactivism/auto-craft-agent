@@ -94,20 +94,10 @@ export class GitHubService {
 
   async getFileSha(owner: string, repo: string, path: string): Promise<string | undefined> {
     try {
-      const response = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/contents/${path}`, {
-        headers: {
-          Authorization: `token ${this.token}`,
-          Accept: "application/vnd.github.v3+json",
-        },
-      });
-      if (response.status === 404) return undefined;
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-      }
-      const content = await response.json();
+      const content = await this.fetch(`/repos/${owner}/${repo}/contents/${path}`);
       return content.sha as string | undefined;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('404')) {
+      if (error instanceof Error && error.message.includes('GitHub API error')) {
         return undefined;
       }
       throw error;
