@@ -79,7 +79,7 @@ export class GitHubService {
     sha?: string
   ) {
     const encodedContent = btoa(unescape(encodeURIComponent(content)));
-    const body: any = {
+    const body: { message: string; content: string; sha?: string } = {
       message,
       content: encodedContent,
     };
