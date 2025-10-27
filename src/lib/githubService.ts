@@ -94,10 +94,23 @@ export class GitHubService {
 
   async getFileSha(owner: string, repo: string, path: string): Promise<string | undefined> {
     try {
-      const content: GitHubContent = await this.fetch(`/repos/${owner}/${repo}/contents/${path}`);
-      return (content as any).sha;
-    } catch {
-      return undefined;
+      const response = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/contents/${path}`, {
+        headers: {
+          Authorization: `token ${this.token}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      });
+      if (response.status === 404) return undefined;
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+      }
+      const content = await response.json();
+      return content.sha as string | undefined;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) {
+        return undefined;
+      }
+      throw error;
     }
   }
 
@@ -136,9 +149,16 @@ export class GitHubService {
       const items = Array.isArray(contents) ? contents : [contents];
 
       for (const item of items) {
-        if (item.type === "file" && item.download_url) {
-          const content = await fetch(item.download_url).then(r => r.text());
-          allFiles.push({ path: item.path, content, type: "file" });
+        if (item.type === "file") {
+          // Re-fetch file to get base64 content with auth (works for private repos)
+          const fileObj = await this.fetch(`/repos/${owner}/${repo}/contents/${item.path}`);
+          const base64 = fileObj.content as string | undefined;
+          const encoding = fileObj.encoding as string | undefined;
+          if (base64 && encoding === "base64") {
+            const bytes = Uint8Array.from(atob(base64.replace(/\n/g, "")), c => c.charCodeAt(0));
+            const content = new TextDecoder().decode(bytes);
+            allFiles.push({ path: item.path, content, type: "file" });
+          }
         } else if (item.type === "dir") {
           await fetchRecursive.call(this, item.path);
         }

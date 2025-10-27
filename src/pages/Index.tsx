@@ -97,15 +97,22 @@ const Index = () => {
 
   // Auto-sync effect
   useEffect(() => {
+    let inFlight = false;
     if (!autoSyncEnabled || !connectedRepo) return;
 
     const performAutoSync = async () => {
-      await handleBidirectionalSync();
+      if (inFlight || isSyncing) return;
+      inFlight = true;
+      try {
+        await handleBidirectionalSync();
+      } finally {
+        inFlight = false;
+      }
     };
 
     const interval = setInterval(performAutoSync, syncInterval);
     return () => clearInterval(interval);
-  }, [autoSyncEnabled, connectedRepo, syncInterval]);
+  }, [autoSyncEnabled, connectedRepo, syncInterval, isSyncing]);
 
   const addTerminalLine = (text: string, type: TerminalLine["type"]) => {
     setTerminalLines((prev) => [...prev, { text, type }]);
@@ -257,7 +264,15 @@ const Index = () => {
     if (!targetRepo) return;
 
     const token = localStorage.getItem("github_token");
-    if (!token) return;
+    if (!token) {
+      toast({
+        title: "GitHub Token Required",
+        description: "Add your token in Settings",
+        variant: "destructive",
+      });
+      setSettingsOpen(true);
+      return;
+    }
 
     setIsSyncing(true);
     addTerminalLine(`Syncing from GitHub: ${targetRepo.full_name}`, "command");
@@ -269,12 +284,12 @@ const Index = () => {
       const files = await service.syncFromGitHub(owner, repoName);
       
       // Convert to FileNode structure
-      const fileTree: FileNode[] = [];
+      const pulledTree: FileNode[] = [];
       for (const file of files) {
         const pathParts = file.path.split("/");
         const fileName = pathParts.pop()!;
         
-        let currentLevel = fileTree;
+        let currentLevel = pulledTree;
         for (const part of pathParts) {
           let folder = currentLevel.find((f) => f.name === part && f.type === "folder");
           if (!folder) {
@@ -287,7 +302,7 @@ const Index = () => {
         currentLevel.push({ name: fileName, type: "file", content: file.content });
       }
 
-      setFileTree(fileTree);
+      setFileTree(pulledTree);
       setLastSyncTime(new Date());
       addTerminalLine(`✓ Synced ${files.length} files from ${targetRepo.name}`, "success");
       
@@ -353,9 +368,7 @@ const Index = () => {
     await handleSyncFromGitHub();
     
     // Then push local changes
-    if (fileTree.length > 0) {
-      await handleSyncToGitHub();
-    }
+    await handleSyncToGitHub();
   };
 
   const handleExport = async () => {
