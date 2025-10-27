@@ -75,9 +75,9 @@ export const GitHubBrowser = ({ open, onOpenChange, onSelectRepo }: GitHubBrowse
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Github className="h-5 w-5" />
-            Import from GitHub
+            Connect to GitHub Repository
           </DialogTitle>
-          <DialogDescription>Select a repository to import into the agent</DialogDescription>
+          <DialogDescription>Select a repository for bidirectional sync with the autonomous agent</DialogDescription>
         </DialogHeader>
 
         <div className="relative">

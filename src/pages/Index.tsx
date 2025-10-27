@@ -8,6 +8,7 @@ import { AgentThinking } from "@/components/AgentThinking";
 import { ExecutionMetrics } from "@/components/ExecutionMetrics";
 import { Settings } from "@/components/Settings";
 import { GitHubBrowser } from "@/components/GitHubBrowser";
+import { SyncStatus } from "@/components/SyncStatus";
 import { Bot, Zap, Settings as SettingsIcon, Github, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +45,11 @@ const Index = () => {
   const [startTime, setStartTime] = useState<number>(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [githubBrowserOpen, setGithubBrowserOpen] = useState(false);
+  const [connectedRepo, setConnectedRepo] = useState<GitHubRepo | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [syncInterval, setSyncInterval] = useState(60000); // 1 minute default
   const { toast } = useToast();
 
   useEffect(() => {
@@ -58,6 +64,48 @@ const Index = () => {
     }
     return () => clearInterval(interval);
   }, [isExecuting, startTime]);
+
+  // Load saved settings on mount
+  useEffect(() => {
+    const savedRepo = localStorage.getItem("connected_repo");
+    const savedAutoSync = localStorage.getItem("auto_sync_enabled");
+    const savedInterval = localStorage.getItem("sync_interval");
+
+    if (savedRepo) {
+      try {
+        setConnectedRepo(JSON.parse(savedRepo));
+      } catch (e) {
+        console.error("Failed to parse saved repo", e);
+      }
+    }
+    if (savedAutoSync) {
+      setAutoSyncEnabled(savedAutoSync === "true");
+    }
+    if (savedInterval) {
+      setSyncInterval(Number(savedInterval));
+    }
+  }, []);
+
+  // Save settings when they change
+  useEffect(() => {
+    localStorage.setItem("auto_sync_enabled", String(autoSyncEnabled));
+  }, [autoSyncEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("sync_interval", String(syncInterval));
+  }, [syncInterval]);
+
+  // Auto-sync effect
+  useEffect(() => {
+    if (!autoSyncEnabled || !connectedRepo) return;
+
+    const performAutoSync = async () => {
+      await handleBidirectionalSync();
+    };
+
+    const interval = setInterval(performAutoSync, syncInterval);
+    return () => clearInterval(interval);
+  }, [autoSyncEnabled, connectedRepo, syncInterval]);
 
   const addTerminalLine = (text: string, type: TerminalLine["type"]) => {
     setTerminalLines((prev) => [...prev, { text, type }]);
@@ -191,42 +239,122 @@ const Index = () => {
     }
   };
 
-  const handleImportRepo = async (repo: GitHubRepo) => {
+  const handleSelectRepo = async (repo: GitHubRepo) => {
+    setConnectedRepo(repo);
+    localStorage.setItem("connected_repo", JSON.stringify(repo));
+    
+    toast({
+      title: "Repository Connected",
+      description: `Connected to ${repo.full_name}`,
+    });
+
+    // Optionally sync from GitHub on connect
+    await handleSyncFromGitHub(repo);
+  };
+
+  const handleSyncFromGitHub = async (repo?: GitHubRepo) => {
+    const targetRepo = repo || connectedRepo;
+    if (!targetRepo) return;
+
     const token = localStorage.getItem("github_token");
     if (!token) return;
 
-    addTerminalLine(`Importing repository: ${repo.full_name}`, "command");
-    setIsExecuting(true);
+    setIsSyncing(true);
+    addTerminalLine(`Syncing from GitHub: ${targetRepo.full_name}`, "command");
 
     try {
       const service = new GitHubService(token);
-      const [owner, repoName] = repo.full_name.split("/");
+      const [owner, repoName] = targetRepo.full_name.split("/");
       
-      const contents = await service.getRepoContents(owner, repoName);
-      const importedFiles: FileNode[] = [];
-
-      for (const item of contents) {
-        if (item.type === "file" && item.download_url) {
-          const content = await service.getFileContent(item.download_url);
-          importedFiles.push({ name: item.name, type: "file", content });
+      const files = await service.syncFromGitHub(owner, repoName);
+      
+      // Convert to FileNode structure
+      const fileTree: FileNode[] = [];
+      for (const file of files) {
+        const pathParts = file.path.split("/");
+        const fileName = pathParts.pop()!;
+        
+        let currentLevel = fileTree;
+        for (const part of pathParts) {
+          let folder = currentLevel.find((f) => f.name === part && f.type === "folder");
+          if (!folder) {
+            folder = { name: part, type: "folder", children: [] };
+            currentLevel.push(folder);
+          }
+          currentLevel = folder.children!;
         }
+        
+        currentLevel.push({ name: fileName, type: "file", content: file.content });
       }
 
-      setFileTree(importedFiles);
-      addTerminalLine(`✓ Imported ${importedFiles.length} files from ${repo.name}`, "success");
+      setFileTree(fileTree);
+      setLastSyncTime(new Date());
+      addTerminalLine(`✓ Synced ${files.length} files from ${targetRepo.name}`, "success");
       
       toast({
-        title: "Repository Imported",
-        description: `Successfully imported ${repo.name}`,
+        title: "Synced from GitHub",
+        description: `Pulled ${files.length} files`,
       });
     } catch (error) {
+      addTerminalLine(`✗ Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
       toast({
-        title: "Import Failed",
+        title: "Sync Failed",
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
-      setIsExecuting(false);
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSyncToGitHub = async () => {
+    if (!connectedRepo || fileTree.length === 0) return;
+
+    const token = localStorage.getItem("github_token");
+    if (!token) return;
+
+    setIsSyncing(true);
+    addTerminalLine(`Syncing to GitHub: ${connectedRepo.full_name}`, "command");
+
+    try {
+      const service = new GitHubService(token);
+      const [owner, repoName] = connectedRepo.full_name.split("/");
+      
+      const files = ExportService.flattenFileTree(fileTree);
+      const result = await service.syncToGitHub(owner, repoName, files);
+      
+      setLastSyncTime(new Date());
+      addTerminalLine(`✓ Pushed ${result.pushed.length} files to ${connectedRepo.name}`, "success");
+      
+      if (result.failed.length > 0) {
+        addTerminalLine(`⚠ ${result.failed.length} files failed to sync`, "error");
+      }
+      
+      toast({
+        title: "Synced to GitHub",
+        description: `Pushed ${result.pushed.length} files`,
+      });
+    } catch (error) {
+      addTerminalLine(`✗ Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+      toast({
+        title: "Sync Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleBidirectionalSync = async () => {
+    if (!connectedRepo) return;
+    
+    // First pull from GitHub
+    await handleSyncFromGitHub();
+    
+    // Then push local changes
+    if (fileTree.length > 0) {
+      await handleSyncToGitHub();
     }
   };
 
@@ -255,58 +383,6 @@ const Index = () => {
     }
   };
 
-  const handlePushToGitHub = async () => {
-    const token = localStorage.getItem("github_token");
-    if (!token) {
-      toast({
-        title: "GitHub Token Required",
-        description: "Please configure your GitHub token in settings",
-        variant: "destructive",
-      });
-      setSettingsOpen(true);
-      return;
-    }
-
-    if (fileTree.length === 0) {
-      toast({
-        title: "No Files to Push",
-        description: "Generate some files first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const service = new GitHubService(token);
-      const repoName = `agent-project-${Date.now()}`;
-      
-      addTerminalLine(`Creating repository: ${repoName}`, "command");
-      const repo = await service.createRepository(repoName, "Generated by Autonomous Code Wizard", false);
-      
-      const files = ExportService.flattenFileTree(fileTree);
-      for (const file of files) {
-        await service.createOrUpdateFile(
-          repo.owner.login,
-          repo.name,
-          file.path,
-          file.content,
-          `Add ${file.path}`
-        );
-        addTerminalLine(`✓ Pushed ${file.path}`, "success");
-      }
-
-      toast({
-        title: "Pushed to GitHub",
-        description: `Repository created: ${repo.html_url}`,
-      });
-    } catch (error) {
-      toast({
-        title: "Push Failed",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -333,17 +409,9 @@ const Index = () => {
                 <SettingsIcon className="h-4 w-4 mr-2" />
                 Configure API Keys
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setGithubBrowserOpen(true)}>
-                <Github className="h-4 w-4 mr-2" />
-                Import from GitHub
-              </Button>
               <Button variant="outline" size="sm" onClick={handleExport} disabled={fileTree.length === 0}>
                 <Download className="h-4 w-4 mr-2" />
                 Export ZIP
-              </Button>
-              <Button variant="outline" size="sm" onClick={handlePushToGitHub} disabled={fileTree.length === 0}>
-                <Upload className="h-4 w-4 mr-2" />
-                Push to GitHub
               </Button>
             </div>
           </div>
@@ -351,10 +419,24 @@ const Index = () => {
       </div>
 
       <Settings open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <GitHubBrowser open={githubBrowserOpen} onOpenChange={setGithubBrowserOpen} onSelectRepo={handleImportRepo} />
+      <GitHubBrowser open={githubBrowserOpen} onOpenChange={setGithubBrowserOpen} onSelectRepo={handleSelectRepo} />
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* GitHub Sync Status */}
+        <SyncStatus
+          connectedRepo={connectedRepo}
+          onSelectRepo={() => setGithubBrowserOpen(true)}
+          onSyncToGitHub={handleSyncToGitHub}
+          onSyncFromGitHub={() => handleSyncFromGitHub()}
+          lastSyncTime={lastSyncTime}
+          isSyncing={isSyncing}
+          autoSyncEnabled={autoSyncEnabled}
+          onAutoSyncChange={setAutoSyncEnabled}
+          syncInterval={syncInterval}
+          onSyncIntervalChange={setSyncInterval}
+        />
+
         {/* Task Input */}
         <TaskInput onSubmit={executeWithAI} isExecuting={isExecuting} />
 

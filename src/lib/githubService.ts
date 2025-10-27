@@ -91,4 +91,65 @@ export class GitHubService {
       body: JSON.stringify(body),
     });
   }
+
+  async getFileSha(owner: string, repo: string, path: string): Promise<string | undefined> {
+    try {
+      const content: GitHubContent = await this.fetch(`/repos/${owner}/${repo}/contents/${path}`);
+      return (content as any).sha;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async syncToGitHub(
+    owner: string,
+    repo: string,
+    files: Array<{ path: string; content: string }>,
+    commitMessage: string = "Sync from Autonomous Code Wizard"
+  ): Promise<{ pushed: string[]; failed: string[] }> {
+    const pushed: string[] = [];
+    const failed: string[] = [];
+
+    for (const file of files) {
+      try {
+        const sha = await this.getFileSha(owner, repo, file.path);
+        await this.createOrUpdateFile(owner, repo, file.path, file.content, commitMessage, sha);
+        pushed.push(file.path);
+      } catch (error) {
+        console.error(`Failed to sync ${file.path}:`, error);
+        failed.push(file.path);
+      }
+    }
+
+    return { pushed, failed };
+  }
+
+  async syncFromGitHub(
+    owner: string,
+    repo: string,
+    path: string = ""
+  ): Promise<Array<{ path: string; content: string; type: "file" | "dir" }>> {
+    const allFiles: Array<{ path: string; content: string; type: "file" | "dir" }> = [];
+
+    async function fetchRecursive(currentPath: string): Promise<void> {
+      const contents = await this.fetch(`/repos/${owner}/${repo}/contents/${currentPath}`);
+      const items = Array.isArray(contents) ? contents : [contents];
+
+      for (const item of items) {
+        if (item.type === "file" && item.download_url) {
+          const content = await fetch(item.download_url).then(r => r.text());
+          allFiles.push({ path: item.path, content, type: "file" });
+        } else if (item.type === "dir") {
+          await fetchRecursive.call(this, item.path);
+        }
+      }
+    }
+
+    await fetchRecursive.call(this, path);
+    return allFiles;
+  }
+
+  async getRepoInfo(owner: string, repo: string) {
+    return this.fetch(`/repos/${owner}/${repo}`);
+  }
 }
