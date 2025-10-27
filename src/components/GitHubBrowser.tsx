@@ -176,11 +176,9 @@ export const GitHubBrowser = ({ open, onOpenChange, onSelectRepo }: GitHubBrowse
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Github className="h-5 w-5" />
-            GitHub Repository Browser
+            Connect to GitHub Repository
           </DialogTitle>
-          <DialogDescription>
-            Browse, search, and connect repositories with bidirectional sync capabilities
-          </DialogDescription>
+          <DialogDescription>Select a repository for bidirectional sync with the autonomous agent</DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="browse" className="flex-1 flex flex-col">

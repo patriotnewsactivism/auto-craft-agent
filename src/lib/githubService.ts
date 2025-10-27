@@ -142,205 +142,74 @@ export class GitHubService {
     });
   }
 
-  async listBranches(owner: string, repo: string): Promise<GitHubBranch[]> {
-    return this.fetch(`/repos/${owner}/${repo}/branches`);
-  }
-
-  async createBranch(owner: string, repo: string, branchName: string, fromSha: string) {
-    return this.fetch(`/repos/${owner}/${repo}/git/refs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ref: `refs/heads/${branchName}`,
-        sha: fromSha,
-      }),
-    });
-  }
-
-  async getBranch(owner: string, repo: string, branch: string) {
-    return this.fetch(`/repos/${owner}/${repo}/branches/${branch}`);
-  }
-
-  async getCommits(owner: string, repo: string, branch: string = "main", per_page: number = 10): Promise<GitHubCommit[]> {
-    return this.fetch(`/repos/${owner}/${repo}/commits?sha=${branch}&per_page=${per_page}`);
-  }
-
-  async getFileContents(owner: string, repo: string, path: string, branch: string = "main"): Promise<GitHubContent> {
-    return this.fetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branch}`);
-  }
-
-  async deleteFile(owner: string, repo: string, path: string, message: string, sha: string, branch: string = "main") {
-    return this.fetch(`/repos/${owner}/${repo}/contents/${path}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        sha,
-        branch,
-      }),
-    });
-  }
-
-  async compareCommits(owner: string, repo: string, base: string, head: string) {
-    return this.fetch(`/repos/${owner}/${repo}/compare/${base}...${head}`);
-  }
-
-  async createPullRequest(owner: string, repo: string, title: string, head: string, base: string, body?: string) {
-    return this.fetch(`/repos/${owner}/${repo}/pulls`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title,
-        head,
-        base,
-        body: body || "",
-      }),
-    });
-  }
-
-  async mergePullRequest(owner: string, repo: string, pullNumber: number, commitTitle?: string, commitMessage?: string) {
-    return this.fetch(`/repos/${owner}/${repo}/pulls/${pullNumber}/merge`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        commit_title: commitTitle,
-        commit_message: commitMessage,
-        merge_method: "merge",
-      }),
-    });
-  }
-
-  // Advanced sync methods
-  async syncRepository(
-    owner: string,
-    repo: string,
-    localFiles: Map<string, { content: string; sha?: string }>,
-    branch: string = "main"
-  ): Promise<{ conflicts: SyncConflict[]; synced: string[]; errors: string[] }> {
-    const conflicts: SyncConflict[] = [];
-    const synced: string[] = [];
-    const errors: string[] = [];
-
+  async getFileSha(owner: string, repo: string, path: string): Promise<string | undefined> {
     try {
-      // Get all remote files
-      const remoteContents = await this.getRepoContentsRecursive(owner, repo, "", branch);
-      const remoteFiles = new Map<string, GitHubContent>();
-      
-      remoteContents.forEach(file => {
-        if (file.type === "file") {
-          remoteFiles.set(file.path, file);
-        }
-      });
-
-      // Compare local vs remote
-      for (const [path, localFile] of localFiles) {
-        const remoteFile = remoteFiles.get(path);
-        
-        if (!remoteFile) {
-          // File only exists locally - create it
-          try {
-            await this.createOrUpdateFile(owner, repo, path, localFile.content, `Add ${path}`, undefined, branch);
-            synced.push(path);
-          } catch (error) {
-            errors.push(`Failed to create ${path}: ${error}`);
-          }
-        } else {
-          // File exists both locally and remotely - check for conflicts
-          const remoteContent = remoteFile.download_url ? 
-            await this.getFileContent(remoteFile.download_url) : "";
-          
-          if (remoteContent !== localFile.content) {
-            if (localFile.sha && localFile.sha !== remoteFile.sha) {
-              // Conflict detected
-              conflicts.push({
-                path,
-                localContent: localFile.content,
-                remoteContent,
-                localSha: localFile.sha,
-                remoteSha: remoteFile.sha,
-                type: 'content'
-              });
-            } else {
-              // Update remote with local changes
-              try {
-                await this.createOrUpdateFile(owner, repo, path, localFile.content, `Update ${path}`, remoteFile.sha, branch);
-                synced.push(path);
-              } catch (error) {
-                errors.push(`Failed to update ${path}: ${error}`);
-              }
-            }
-          }
-        }
-      }
-
-      // Check for files that exist remotely but not locally
-      for (const [path, remoteFile] of remoteFiles) {
-        if (!localFiles.has(path)) {
-          conflicts.push({
-            path,
-            localContent: "",
-            remoteContent: remoteFile.download_url ? await this.getFileContent(remoteFile.download_url) : "",
-            remoteSha: remoteFile.sha,
-            type: 'deletion'
-          });
-        }
-      }
-
+      const content = await this.fetch(`/repos/${owner}/${repo}/contents/${path}`);
+      return content.sha as string | undefined;
     } catch (error) {
-      errors.push(`Sync failed: ${error}`);
+      if (error instanceof Error && error.message.includes('GitHub API error')) {
+        return undefined;
+      }
+      throw error;
     }
-
-    return { conflicts, synced, errors };
   }
 
-  async resolveConflict(
+  async syncToGitHub(
     owner: string,
     repo: string,
-    conflict: SyncConflict,
-    resolution: 'local' | 'remote' | 'merged',
-    mergedContent?: string,
-    branch: string = "main"
-  ) {
-    const content = resolution === 'local' ? conflict.localContent :
-                   resolution === 'remote' ? conflict.remoteContent :
-                   mergedContent || conflict.localContent;
+    files: Array<{ path: string; content: string }>,
+    commitMessage: string = "Sync from Autonomous Code Wizard"
+  ): Promise<{ pushed: string[]; failed: string[] }> {
+    const pushed: string[] = [];
+    const failed: string[] = [];
 
-    if (conflict.type === 'deletion' && resolution === 'remote') {
-      // Delete the local file (handled by caller)
-      return { action: 'delete', path: conflict.path };
-    }
-
-    await this.createOrUpdateFile(
-      owner,
-      repo,
-      conflict.path,
-      content,
-      `Resolve conflict in ${conflict.path}`,
-      conflict.remoteSha,
-      branch
-    );
-
-    return { action: 'update', path: conflict.path, content };
-  }
-
-  private async getRepoContentsRecursive(
-    owner: string,
-    repo: string,
-    path: string = "",
-    branch: string = "main"
-  ): Promise<GitHubContent[]> {
-    const contents = await this.fetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branch}`);
-    const result: GitHubContent[] = [];
-
-    for (const item of Array.isArray(contents) ? contents : [contents]) {
-      if (item.type === "file") {
-        result.push(item);
-      } else if (item.type === "dir") {
-        const subContents = await this.getRepoContentsRecursive(owner, repo, item.path, branch);
-        result.push(...subContents);
+    for (const file of files) {
+      try {
+        const sha = await this.getFileSha(owner, repo, file.path);
+        await this.createOrUpdateFile(owner, repo, file.path, file.content, commitMessage, sha);
+        pushed.push(file.path);
+      } catch (error) {
+        console.error(`Failed to sync ${file.path}:`, error);
+        failed.push(file.path);
       }
     }
 
-    return result;
+    return { pushed, failed };
+  }
+
+  async syncFromGitHub(
+    owner: string,
+    repo: string,
+    path: string = ""
+  ): Promise<Array<{ path: string; content: string; type: "file" | "dir" }>> {
+    const allFiles: Array<{ path: string; content: string; type: "file" | "dir" }> = [];
+
+    async function fetchRecursive(currentPath: string): Promise<void> {
+      const contents = await this.fetch(`/repos/${owner}/${repo}/contents/${currentPath}`);
+      const items = Array.isArray(contents) ? contents : [contents];
+
+      for (const item of items) {
+        if (item.type === "file") {
+          // Re-fetch file to get base64 content with auth (works for private repos)
+          const fileObj = await this.fetch(`/repos/${owner}/${repo}/contents/${item.path}`);
+          const base64 = fileObj.content as string | undefined;
+          const encoding = fileObj.encoding as string | undefined;
+          if (base64 && encoding === "base64") {
+            const bytes = Uint8Array.from(atob(base64.replace(/\n/g, "")), c => c.charCodeAt(0));
+            const content = new TextDecoder().decode(bytes);
+            allFiles.push({ path: item.path, content, type: "file" });
+          }
+        } else if (item.type === "dir") {
+          await fetchRecursive.call(this, item.path);
+        }
+      }
+    }
+
+    await fetchRecursive.call(this, path);
+    return allFiles;
+  }
+
+  async getRepoInfo(owner: string, repo: string) {
+    return this.fetch(`/repos/${owner}/${repo}`);
   }
 }
