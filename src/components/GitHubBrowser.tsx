@@ -24,7 +24,8 @@ export const GitHubBrowser = ({ open, onOpenChange, onSelectRepo }: GitHubBrowse
     if (open) {
       loadRepositories();
     }
-  }, [open, loadRepositories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (search) {
