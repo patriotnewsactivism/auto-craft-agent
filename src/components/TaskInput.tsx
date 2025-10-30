@@ -26,6 +26,8 @@ export const TaskInput = ({ onSubmit, isExecuting }: TaskInputProps) => {
           placeholder="Describe your coding task in detail... e.g., 'Build a responsive dashboard with user authentication, data visualization charts, and a settings page'"
           className="min-h-[150px] bg-secondary border-primary/30 focus:border-primary resize-none text-base code-font"
           disabled={isExecuting}
+          autoComplete="off"
+          data-form-type="other"
         />
         <div className="absolute top-3 right-3 text-xs text-muted-foreground code-font">
           {task.length} chars

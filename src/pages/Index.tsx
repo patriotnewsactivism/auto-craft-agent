@@ -106,7 +106,7 @@ const Index = () => {
   };
 
  const executeWithAI = async (task: string) => {
-    const apiKey = localStorage.getItem("google_api_key");
+    const apiKey = import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem("google_api_key");
     if (!apiKey) {
       toast({
         title: "API Key Required",
@@ -245,7 +245,7 @@ const Index = () => {
     const targetRepo = repo || connectedRepo;
     if (!targetRepo) return;
 
-    const token = localStorage.getItem("github_token");
+    const token = import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem("github_token");
     if (!token) {
       toast({
         title: "GitHub Token Required",
@@ -307,7 +307,7 @@ const Index = () => {
   const handleSyncToGitHub = useCallback(async () => {
     if (!connectedRepo || fileTree.length === 0) return;
 
-    const token = localStorage.getItem("github_token");
+    const token = import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem("github_token");
     if (!token) return;
 
     setIsSyncing(true);

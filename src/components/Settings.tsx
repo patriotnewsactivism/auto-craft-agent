@@ -72,6 +72,8 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
                 placeholder={googleKeyFromEnv ? "Loaded from environment" : "AIzaSy..."}
                 className="pr-10"
                 disabled={!!googleKeyFromEnv}
+                autoComplete="off"
+                data-form-type="other"
               />
               <Button
                 type="button"
@@ -114,6 +116,8 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
                 placeholder={githubTokenFromEnv ? "Loaded from environment" : "ghp_..."}
                 className="pr-10"
                 disabled={!!githubTokenFromEnv}
+                autoComplete="off"
+                data-form-type="other"
               />
               <Button
                 type="button"
