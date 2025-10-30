@@ -60,9 +60,11 @@ npm run dev
 
 ### Environment Variables
 
-This app requires API keys to function. You can provide them in two ways:
+This app requires API keys to function. You can provide them in different ways depending on your environment:
 
-1. **Environment Variables (Recommended for production)**
+#### Local Development
+
+1. **Environment Variables (Recommended)**
    - Create a `.env` file in the project root (copy from `.env.example`)
    - Add your keys with the `VITE_` prefix:
      ```
@@ -75,6 +77,20 @@ This app requires API keys to function. You can provide them in two ways:
    - Enter your keys (stored in browser localStorage)
 
 **Note:** Environment variables take precedence over localStorage.
+
+#### Vercel/Production Deployment
+
+**IMPORTANT:** When deploying to Vercel, you need to set environment variables in your Vercel project settings:
+
+1. Go to your Vercel project → Settings → Environment Variables
+2. Add the following variables:
+   - `GOOGLE_API_KEY` - Your Google AI API key (for server-side API)
+   - `VITE_GOOGLE_API_KEY` - Same value (for client-side)
+   - `VITE_GITHUB_TOKEN` - Your GitHub token (optional, for GitHub integration)
+
+**Why two GOOGLE_API_KEY variables?**
+- `GOOGLE_API_KEY` (no prefix) is used by the Vercel serverless function (`/api/generate`)
+- `VITE_GOOGLE_API_KEY` (with prefix) is used by the Vite frontend build
 
 ### Getting API Keys
 
@@ -95,7 +111,26 @@ This project is built with:
 
 ## How can I deploy this project?
 
+### Deploy via Lovable (Easiest)
+
 Simply open [Lovable](https://lovable.dev/projects/881d493d-8544-414c-bac0-6eb737eb05d7) and click on Share -> Publish.
+
+### Deploy to Vercel Manually
+
+1. Push your code to GitHub
+2. Import the repository in Vercel
+3. **IMPORTANT:** Set environment variables in Vercel:
+   - `GOOGLE_API_KEY` (for API endpoint)
+   - `VITE_GOOGLE_API_KEY` (for frontend)
+   - `VITE_GITHUB_TOKEN` (optional)
+4. Deploy
+
+### Troubleshooting Deployment Issues
+
+If you see errors:
+- **500 error on `/api/generate`**: Missing `GOOGLE_API_KEY` in Vercel environment variables
+- **Black screen**: Check browser console for errors, see `DEPLOYMENT_DEBUG.md`
+- **API key errors**: Ensure both `GOOGLE_API_KEY` and `VITE_GOOGLE_API_KEY` are set
 
 ## Can I connect a custom domain to my Lovable project?
 
