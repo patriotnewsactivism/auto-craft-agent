@@ -1,14 +1,7 @@
-export const config = {
-  runtime: 'edge',
-};//
-// This is the new content for: api/generate.ts
-//
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-//
 // VERCEL CONFIG: This tells Vercel to run this as an Edge Function
-//
 export const config = {
   runtime: 'edge',
 };
@@ -22,7 +15,7 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 
-  // 1. Get the Google AI API key from Vercel Environment Variables
+  // Get the Google AI API key from Vercel Environment Variables
   const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
   if (!GOOGLE_API_KEY) {
@@ -34,13 +27,13 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    // 2. Initialize the Google AI client
+    // Initialize the Google AI client
     const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
     
     // Using gemini-pro as it's stable
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
-    // 3. Get the prompt from the request body
+    // Get the prompt from the request body
     const { prompt } = (await req.json()) as { prompt?: string };
 
     if (!prompt) {
@@ -50,12 +43,12 @@ export default async function handler(req: Request): Promise<Response> {
       });
     }
 
-    // 4. Make the secure, server-to-server request to Google AI
+    // Make the secure, server-to-server request to Google AI
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    // 5. Send the successful text response back to your React app
+    // Send the successful text response back to your React app
     return new Response(JSON.stringify({ text: text }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
