@@ -105,18 +105,14 @@ const Index = () => {
     setThinkingSteps((prev) => [...prev, { id: Date.now().toString(), thought, timestamp }]);
   };
 
-  const executeWithAI = async (task: string) => {
-    const apiKey = localStorage.getItem("anthropic_api_key");
+ const executeWithAI = async (task: string) => {
+    const apiKey = localStorage.getItem("google_api_key"); // <-- CHANGED
     if (!apiKey) {
       toast({
         title: "API Key Required",
-        description: "Please configure your Anthropic API key in settings",
+        description: "Please configure your Google AI API key in settings", // <-- CHANGED
         variant: "destructive",
       });
-      setSettingsOpen(true);
-      return;
-    }
-
     setIsExecuting(true);
     setSteps([]);
     setFileTree([]);
