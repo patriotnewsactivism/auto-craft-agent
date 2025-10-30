@@ -105,16 +105,16 @@ const Index = () => {
     setThinkingSteps((prev) => [...prev, { id: Date.now().toString(), thought, timestamp }]);
   };
 
-  const executeWithAI = async (task: string) => {
-    const apiKey = localStorage.getItem("anthropic_api_key");
+ const executeWithAI = async (task: string) => {
+    const apiKey = localStorage.getItem("google_api_key");
     if (!apiKey) {
       toast({
         title: "API Key Required",
-        description: "Please configure your Anthropic API key in settings",
+        description: "Please configure your Google AI API key in settings",
         variant: "destructive",
       });
-      setSettingsOpen(true);
-      return;
+      setSettingsOpen(true); // <-- Added this line back
+      return; // <-- Added this line
     }
 
     setIsExecuting(true);
@@ -131,10 +131,10 @@ const Index = () => {
     addThought("Initializing AI-powered analysis...");
 
     try {
-      const aiService = new AIService(apiKey);
+      const aiService = new AIService(); 
       
       // Analyze task with AI
-      addThought("Consulting Claude AI for task breakdown...");
+      addThought("Consulting Google AI for task breakdown..."); // <-- Changed "Claude AI"
       const analysis = await aiService.analyzeTask(task);
       
       addThought(`Task complexity: ${analysis.complexity.toUpperCase()}`);
@@ -162,7 +162,7 @@ const Index = () => {
         // Generate actual code with AI for coding steps
         if (step.type === "coding" && step.files && step.files.length > 0) {
           for (const filePath of step.files) {
-            addThought(`Generating ${filePath} with Claude AI...`);
+            addThought(`Generating ${filePath} with Google AI...`); // <-- Changed "Claude AI"
             
             try {
               const code = await aiService.generateCode(
@@ -413,7 +413,7 @@ const Index = () => {
             </h1>
             
             <p className="text-lg text-muted-foreground max-w-2xl">
-              AI-powered autonomous coding agent with Claude integration, GitHub connectivity,
+              AI-powered autonomous coding agent with Google AI integration, GitHub connectivity,
               and real-time intelligent code generation.
             </p>
 

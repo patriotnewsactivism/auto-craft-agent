@@ -1,3 +1,6 @@
+//
+// This is the updated content for: src/components/Settings.tsx
+//
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,22 +15,22 @@ interface SettingsProps {
 }
 
 export const Settings = ({ open, onOpenChange }: SettingsProps) => {
-  const [anthropicKey, setAnthropicKey] = useState("");
+  const [googleKey, setGoogleKey] = useState("");
   const [githubToken, setGithubToken] = useState("");
-  const [showAnthropic, setShowAnthropic] = useState(false);
+  const [showGoogle, setShowGoogle] = useState(false);
   const [showGithub, setShowGithub] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedAnthropic = localStorage.getItem("anthropic_api_key");
+    const savedGoogle = localStorage.getItem("google_api_key");
     const savedGithub = localStorage.getItem("github_token");
-    if (savedAnthropic) setAnthropicKey(savedAnthropic);
+    if (savedGoogle) setGoogleKey(savedGoogle);
     if (savedGithub) setGithubToken(savedGithub);
   }, [open]);
 
   const handleSave = () => {
-    if (anthropicKey) {
-      localStorage.setItem("anthropic_api_key", anthropicKey);
+    if (googleKey) {
+      localStorage.setItem("google_api_key", googleKey);
     }
     if (githubToken) {
       localStorage.setItem("github_token", githubToken);
@@ -54,14 +57,14 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
 
         <div className="space-y-6 py-4">
           <div className="space-y-2">
-            <Label htmlFor="anthropic">Anthropic API Key</Label>
+            <Label htmlFor="google">Google AI API Key</Label>
             <div className="relative">
               <Input
-                id="anthropic"
-                type={showAnthropic ? "text" : "password"}
-                value={anthropicKey}
-                onChange={(e) => setAnthropicKey(e.target.value)}
-                placeholder="sk-ant-..."
+                id="google"
+                type={showGoogle ? "text" : "password"}
+                value={googleKey}
+                onChange={(e) => setGoogleKey(e.target.value)}
+                placeholder="AIzaSy..."
                 className="pr-10"
               />
               <Button
@@ -69,20 +72,20 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
                 variant="ghost"
                 size="sm"
                 className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowAnthropic(!showAnthropic)}
+                onClick={() => setShowGoogle(!showGoogle)}
               >
-                {showAnthropic ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showGoogle ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
               Get your key from{" "}
               <a
-                href="https://console.anthropic.com/"
+                href="https://aistudio.google.com/app/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                console.anthropic.com
+                Google AI Studio
               </a>
             </p>
           </div>
