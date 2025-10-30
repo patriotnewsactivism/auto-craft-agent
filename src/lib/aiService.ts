@@ -1,15 +1,40 @@
+//
+// This is the updated content for: src/lib/aiService.ts
+//
 export interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
 export class AIService {
-  private apiKey: string;
+  // No API key is stored here!
   private model: string;
 
-  constructor(apiKey: string, model: string = "claude-sonnet-4-5") {
-    this.apiKey = apiKey;
+  constructor(model: string = "claude-3-haiku-20240307") { // Using a cheaper model
     this.model = model;
+  }
+
+  // This function is now private because all requests should go through the proxy
+  private async makeApiRequest(messages: Message[]): Promise<any> {
+    const response = await fetch("/api/generate", { // <-- Calls your new proxy
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // NO API KEY or Anthropic headers here
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: 4096, // Max tokens for Haiku
+        messages,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`API error: ${errorData.error || response.statusText}`);
+    }
+
+    return response.json();
   }
 
   async generateCode(prompt: string, context?: string): Promise<string> {
@@ -20,25 +45,7 @@ export class AIService {
       },
     ];
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": this.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: 8000,
-        messages,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`AI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
+    const data = await this.makeApiRequest(messages);
     return data.content[0].text;
   }
 
@@ -61,25 +68,7 @@ Task: ${task}`,
       },
     ];
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": this.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: 2000,
-        messages,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`AI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
+    const data = await this.makeApiRequest(messages);
     const text = data.content[0].text;
     
     // Extract JSON from potential markdown code blocks
