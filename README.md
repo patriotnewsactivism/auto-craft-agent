@@ -32,7 +32,13 @@ cd <YOUR_PROJECT_NAME>
 # Step 3: Install the necessary dependencies.
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Set up environment variables (required for AI features)
+cp .env.example .env
+# Then edit .env and add your API keys:
+# - VITE_GOOGLE_API_KEY: Get from https://aistudio.google.com/app/apikey
+# - VITE_GITHUB_TOKEN: Get from https://github.com/settings/tokens (needs repo scope)
+
+# Step 5: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
@@ -50,6 +56,31 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## Configuration
+
+### Environment Variables
+
+This app requires API keys to function. You can provide them in two ways:
+
+1. **Environment Variables (Recommended for production)**
+   - Create a `.env` file in the project root (copy from `.env.example`)
+   - Add your keys with the `VITE_` prefix:
+     ```
+     VITE_GOOGLE_API_KEY=your_key_here
+     VITE_GITHUB_TOKEN=your_token_here
+     ```
+
+2. **Settings Dialog (For quick testing)**
+   - Click "Configure API Keys" in the app
+   - Enter your keys (stored in browser localStorage)
+
+**Note:** Environment variables take precedence over localStorage.
+
+### Getting API Keys
+
+- **Google AI API Key**: https://aistudio.google.com/app/apikey
+- **GitHub Token**: https://github.com/settings/tokens (needs `repo` scope)
+
 ## What technologies are used for this project?
 
 This project is built with:
@@ -59,6 +90,8 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Google AI (Gemini)
+- GitHub API
 
 ## How can I deploy this project?
 
