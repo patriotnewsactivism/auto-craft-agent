@@ -1,5 +1,5 @@
 //
-// This is the new content for: api/generate.ts
+// This file goes in: api/generate.ts
 //
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -20,8 +20,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 2. Initialize the Google AI client
     const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
     
-    // Using gemini-1.5-flash as it's fast and cheap
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    // CHANGED: Use 'gemini-pro' as it's a stable and widely available model.
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     // 3. Get the prompt from the request body
     const { prompt } = req.body;
