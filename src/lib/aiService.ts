@@ -6,25 +6,40 @@ export class AIService {
   }
 
   private async makeApiRequest(prompt: string): Promise<string> {
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        prompt: prompt,
-      }),
-    });
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: this.model,
+          prompt: prompt,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      const errorMessage = data.error || `HTTP error! status: ${response.status}`;
-      throw new Error(`API error: ${errorMessage}`);
+      if (!response.ok) {
+        // Enhanced error messages from the API
+        const errorMessage = data.error || `HTTP error! status: ${response.status}`;
+        const details = data.details ? `\n${data.details}` : '';
+        const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
+        
+        throw new Error(`API error: ${errorMessage}${details}${hint}`);
+      }
+
+      return data.text;
+    } catch (error) {
+      // Handle network errors
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          throw new Error('Network error: Unable to connect to API. Make sure the server is running.');
+        }
+        throw error;
+      }
+      throw new Error('Unknown error occurred while making API request');
     }
-
-    return data.text;
   }
 
   async generateCode(prompt: string, context?: string): Promise<string> {

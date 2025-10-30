@@ -18,6 +18,21 @@ In developer tools, go to the Network tab and refresh:
 
 ### 3. Common Deployment Issues
 
+#### Issue: API Error 500 on `/api/generate`
+**Symptoms:** 
+- API calls to `/api/generate` fail with 500 status
+- Console shows: "Failed to load resource: the server responded with a status of 500 ()"
+
+**Solution:** Set environment variables in Vercel:
+
+1. Go to Vercel Project → Settings → Environment Variables
+2. Add these variables:
+   - `GOOGLE_API_KEY` - Your Google AI API key (NO VITE_ prefix for the API)
+   - `VITE_GOOGLE_API_KEY` - Same value (for frontend)
+3. Redeploy the project
+
+**Why?** The Vercel serverless function needs `GOOGLE_API_KEY` (without VITE_ prefix), while the frontend needs `VITE_GOOGLE_API_KEY`.
+
 #### Issue: Assets not loading (404 errors)
 **Solution:** Add `base` to `vite.config.ts`:
 
