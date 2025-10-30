@@ -1,4 +1,6 @@
-//
+export const config = {
+  runtime: 'edge',
+};//
 // This is the new content for: api/generate.ts
 //
 import type { VercelRequest, VercelResponse } from '@vercel/node';
