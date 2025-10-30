@@ -1,47 +1,74 @@
+//
+// This is the new content for: api/generate.ts
+//
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+//
+// VERCEL CONFIG: This tells Vercel to run this as an Edge Function
+//
+export const config = {
+  runtime: 'edge',
+};
+
+// Note: We use 'Request' and 'Response' from the global scope in Edge Functions
+export default async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
-    console.log('Handler: Method not allowed');
-    return res.status(405).json({ error: { message: 'Method not allowed' } });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   // 1. Get the Google AI API key from Vercel Environment Variables
   const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
   if (!GOOGLE_API_KEY) {
-    console.error('Handler: GOOGLE_API_KEY not found in environment variables.');
-    return res.status(500).json({ error: { message: 'API key not configured on server.' } });
+    console.error('GOOGLE_API_KEY not found in environment variables.');
+    return new Response(JSON.stringify({ error: 'API key not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   try {
     // 2. Initialize the Google AI client
     const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
     
-    // Use 'gemini-pro' as it's a stable and widely available model.
+    // Using gemini-pro as it's stable
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     // 3. Get the prompt from the request body
-    const { prompt } = req.body;
+    const { prompt } = (await req.json()) as { prompt?: string };
 
     if (!prompt) {
-      console.log('Handler: No prompt provided in request body.');
-      return res.status(400).json({ error: { message: 'No prompt provided' } });
+      return new Response(JSON.stringify({ error: 'No prompt provided' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    console.log('Handler: Sending prompt to Google AI...');
+    // 4. Make the secure, server-to-server request to Google AI
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    console.log('Handler: Successfully received response from Google AI.');
-    return res.status(200).json({ text: text });
+    // 5. Send the successful text response back to your React app
+    return new Response(JSON.stringify({ text: text }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
-    console.error('Handler: Error during Google AI request:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown server error';
-    return res.status(500).json({ error: { message: `Server error: ${errorMessage}` } });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Server error:', errorMessage);
+    // Return a more detailed error message
+    return new Response(JSON.stringify({ 
+      error: 'Server error', 
+      details: errorMessage 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
-
