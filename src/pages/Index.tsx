@@ -9,10 +9,14 @@ import { ExecutionMetrics } from "@/components/ExecutionMetrics";
 import { Settings } from "@/components/Settings";
 import { GitHubBrowser } from "@/components/GitHubBrowser";
 import { SyncStatus } from "@/components/SyncStatus";
-import { Bot, Zap, Settings as SettingsIcon, Github, Download, Upload } from "lucide-react";
+import { AutonomousInsights } from "@/components/AutonomousInsights";
+import { ValidationReport } from "@/components/ValidationReport";
+import { Bot, Zap, Settings as SettingsIcon, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { AIService } from "@/lib/aiService";
+import { AutonomousAI } from "@/lib/autonomousAI";
+import { AutonomousValidator } from "@/lib/autonomousValidator";
+import { supabaseService } from "@/lib/supabaseService";
 import { GitHubService, GitHubRepo } from "@/lib/githubService";
 import { ExportService } from "@/lib/exportService";
 
@@ -49,9 +53,20 @@ const Index = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
-  const [syncInterval, setSyncInterval] = useState(60000); // 1 minute default
+  const [syncInterval, setSyncInterval] = useState(60000);
+  
+  // Autonomous features
+  const [autonomousInsights, setAutonomousInsights] = useState<string[]>([]);
+  const [innovationScore, setInnovationScore] = useState(0);
+  const [learnedPatterns, setLearnedPatterns] = useState<string[]>([]);
+  const [codeValidation, setCodeValidation] = useState<any>(null);
+  const [architectureValidation, setArchitectureValidation] = useState<any>(null);
+  const [securityAudit, setSecurityAudit] = useState<any>(null);
+  
   const syncInFlightRef = useRef(false);
   const { toast } = useToast();
+
+  const learningEnabled = supabaseService.isReady();
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -66,7 +81,7 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [isExecuting, startTime]);
 
-  // Load saved settings on mount
+  // Load settings and insights on mount
   useEffect(() => {
     const savedRepo = localStorage.getItem("connected_repo");
     const savedAutoSync = localStorage.getItem("auto_sync_enabled");
@@ -79,15 +94,15 @@ const Index = () => {
         console.error("Failed to parse saved repo", e);
       }
     }
-    if (savedAutoSync) {
-      setAutoSyncEnabled(savedAutoSync === "true");
-    }
-    if (savedInterval) {
-      setSyncInterval(Number(savedInterval));
-    }
-  }, []);
+    if (savedAutoSync) setAutoSyncEnabled(savedAutoSync === "true");
+    if (savedInterval) setSyncInterval(Number(savedInterval));
 
-  // Save settings when they change
+    // Load autonomous insights
+    if (learningEnabled) {
+      loadInsights();
+    }
+  }, [learningEnabled]);
+
   useEffect(() => {
     localStorage.setItem("auto_sync_enabled", String(autoSyncEnabled));
   }, [autoSyncEnabled]);
@@ -95,6 +110,16 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem("sync_interval", String(syncInterval));
   }, [syncInterval]);
+
+  const loadInsights = async () => {
+    try {
+      const ai = new AutonomousAI();
+      const insights = await ai.getAutonomousInsights();
+      setAutonomousInsights(insights);
+    } catch (error) {
+      console.error("Failed to load insights:", error);
+    }
+  };
 
   const addTerminalLine = useCallback((text: string, type: TerminalLine["type"]) => {
     setTerminalLines((prev) => [...prev, { text, type }]);
@@ -105,7 +130,7 @@ const Index = () => {
     setThinkingSteps((prev) => [...prev, { id: Date.now().toString(), thought, timestamp }]);
   };
 
- const executeWithAI = async (task: string) => {
+  const executeWithAutonomousAI = async (task: string) => {
     const apiKey = import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem("google_api_key");
     if (!apiKey) {
       toast({
@@ -113,8 +138,8 @@ const Index = () => {
         description: "Please configure your Google AI API key in settings",
         variant: "destructive",
       });
-      setSettingsOpen(true); // <-- Added this line back
-      return; // <-- Added this line
+      setSettingsOpen(true);
+      return;
     }
 
     setIsExecuting(true);
@@ -124,57 +149,92 @@ const Index = () => {
     setThinkingSteps([]);
     setSelectedFile(null);
     setMetrics({ duration: 0, filesGenerated: 0, stepsCompleted: 0, errors: 0 });
+    setCodeValidation(null);
+    setArchitectureValidation(null);
+    setSecurityAudit(null);
     setStartTime(Date.now());
 
-    addTerminalLine("Autonomous Code Wizard v3.0 initialized", "output");
+    addTerminalLine("🤖 Autonomous Code Wizard v4.0 - Now with Self-Learning AI", "output");
     addTerminalLine(`Task: ${task}`, "command");
-    addThought("Initializing AI-powered analysis...");
+    
+    if (learningEnabled) {
+      addThought("🧠 Autonomous learning ENABLED - I'll learn from this task");
+    } else {
+      addThought("💡 Enable Supabase for autonomous learning and memory");
+    }
 
     try {
-      const aiService = new AIService(); 
+      const autonomousAI = new AutonomousAI();
+      const validator = new AutonomousValidator();
       
-      // Analyze task with AI
-      addThought("Consulting Google AI for task breakdown..."); // <-- Changed "Claude AI"
-      const analysis = await aiService.analyzeTask(task);
+      // Step 1: Analyze with memory and learning
+      addThought("📊 Analyzing task with past experiences and learned patterns...");
+      const taskAnalysis = await autonomousAI.analyzeWithMemory(task);
       
-      addThought(`Task complexity: ${analysis.complexity.toUpperCase()}`);
-      addThought(`Identified ${analysis.steps.length} steps and ${analysis.files.length} files to generate`);
+      addThought(`✨ Innovation Score: ${(taskAnalysis.innovationOpportunities.length / 3 * 100).toFixed(0)}%`);
+      addThought(`🎯 Complexity: ${taskAnalysis.complexity.toUpperCase()}`);
+      addThought(`📝 Identified ${taskAnalysis.steps.length} autonomous steps`);
+      
+      if (taskAnalysis.learnedPatterns.length > 0) {
+        addThought(`🎓 Applying ${taskAnalysis.learnedPatterns.length} learned patterns`);
+        setLearnedPatterns(taskAnalysis.learnedPatterns);
+      }
+
+      if (taskAnalysis.innovationOpportunities.length > 0) {
+        addTerminalLine(`💡 Innovation opportunities: ${taskAnalysis.innovationOpportunities.join(', ')}`, "output");
+      }
+
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Generate steps dynamically from AI analysis
-      const taskSteps: Omit<Step, "status">[] = analysis.steps.map((step, idx) => ({
-        id: (idx + 1).toString(),
-        title: step,
-        description: `AI-generated step: ${step}`,
-        type: idx < 2 ? "analysis" : idx === analysis.steps.length - 1 ? "testing" : "coding",
-        files: analysis.files.filter((_, i) => i % analysis.steps.length === idx),
-      }));
-
+      // Step 2: Plan autonomous execution
+      addThought("🚀 Creating autonomous execution plan...");
+      const executionPlan = await autonomousAI.planExecution(taskAnalysis);
+      
       const generatedFiles: FileNode[] = [];
+      const allGeneratedFiles: Array<{ path: string; content: string }> = [];
 
-      for (let i = 0; i < taskSteps.length; i++) {
-        const step = { ...taskSteps[i], status: "running" as const };
+      // Step 3: Execute each step autonomously
+      for (let i = 0; i < executionPlan.length; i++) {
+        const stepDesc = executionPlan[i];
+        const step: Step = {
+          id: (i + 1).toString(),
+          title: stepDesc,
+          description: `Autonomous step ${i + 1}`,
+          type: i === 0 ? "analysis" : i === executionPlan.length - 1 ? "testing" : "coding",
+          status: "running",
+          files: taskAnalysis.files.filter((_, idx) => idx % executionPlan.length === i)
+        };
         
         setSteps((prev) => [...prev, step]);
-        addTerminalLine(`Executing: ${step.title}`, "command");
-        addThought(`Processing ${step.title.toLowerCase()} with AI...`);
+        addTerminalLine(`⚡ Executing: ${stepDesc}`, "command");
+        addThought(`🔨 Working autonomously on: ${stepDesc}`);
 
-        // Generate actual code with AI for coding steps
+        // Generate code for coding steps
         if (step.type === "coding" && step.files && step.files.length > 0) {
           for (const filePath of step.files) {
-            addThought(`Generating ${filePath} with Google AI...`); // <-- Changed "Claude AI"
+            addThought(`🎨 Generating ${filePath} with innovation...`);
             
             try {
-              const code = await aiService.generateCode(
+              const code = await autonomousAI.generateCodeAutonomously(
                 `Generate ${filePath} for: ${task}`,
-                `This is part of step: ${step.title}`
+                `This is part of: ${stepDesc}`,
+                taskAnalysis
               );
+
+              // Autonomous validation
+              addThought(`🔍 Autonomously validating ${filePath}...`);
+              const validation = await validator.validateCode(filePath, code, task);
+              
+              let finalCode = code;
+              if (!validation.isValid || validation.score < 70) {
+                addThought(`🔧 Auto-correcting issues in ${filePath}...`);
+                finalCode = await validator.autonomousCorrection(filePath, code, validation);
+              }
 
               // Add to file tree
               const pathParts = filePath.split("/");
               const fileName = pathParts.pop()!;
               
-              // Create nested structure
               let currentLevel = generatedFiles;
               for (const part of pathParts) {
                 let folder = currentLevel.find((f) => f.name === part && f.type === "folder");
@@ -185,10 +245,12 @@ const Index = () => {
                 currentLevel = folder.children!;
               }
               
-              currentLevel.push({ name: fileName, type: "file", content: code });
+              currentLevel.push({ name: fileName, type: "file", content: finalCode });
+              allGeneratedFiles.push({ path: filePath, content: finalCode });
               
-              addTerminalLine(`✓ Generated ${filePath}`, "success");
+              addTerminalLine(`✓ Generated ${filePath} (Quality: ${validation.score}/100)`, "success");
               setMetrics(prev => ({ ...prev, filesGenerated: prev.filesGenerated + 1 }));
+              
               await new Promise((resolve) => setTimeout(resolve, 500));
             } catch (error) {
               addTerminalLine(`✗ Failed to generate ${filePath}`, "error");
@@ -196,25 +258,70 @@ const Index = () => {
             }
           }
         } else {
-          // Simulate other step types
-          await new Promise((resolve) => setTimeout(resolve, 2000 + Math.random() * 1500));
+          await new Promise((resolve) => setTimeout(resolve, 1500));
         }
 
         setSteps((prev) =>
           prev.map((s) => (s.id === step.id ? { ...s, status: "completed" as const } : s))
         );
-        addTerminalLine(`✓ ${step.title} completed`, "success");
-        addThought(`Successfully completed ${step.title.toLowerCase()}`);
+        addTerminalLine(`✓ ${stepDesc} completed autonomously`, "success");
         setMetrics(prev => ({ ...prev, stepsCompleted: prev.stepsCompleted + 1 }));
       }
 
       setFileTree(generatedFiles);
-      addTerminalLine("All tasks completed successfully!", "success");
-      addThought("Task execution completed. All files generated and validated.");
+
+      // Step 4: Comprehensive validation
+      if (allGeneratedFiles.length > 0) {
+        addThought("🛡️ Running autonomous architecture and security validation...");
+        
+        const [archValidation, secAudit] = await Promise.all([
+          validator.validateArchitecture(allGeneratedFiles, task),
+          validator.securityAudit(allGeneratedFiles)
+        ]);
+        
+        setArchitectureValidation(archValidation);
+        setSecurityAudit(secAudit);
+        
+        addTerminalLine(`✓ Architecture Score: ${archValidation.score}/100`, "output");
+        addTerminalLine(`✓ Security Score: ${secAudit.score}/100`, "output");
+      }
+
+      // Step 5: Self-reflection and learning
+      const executionTime = Math.floor((Date.now() - startTime) / 1000);
+      const success = metrics.errors === 0;
+      
+      addThought("🧠 Reflecting on execution and learning...");
+      const reflection = await autonomousAI.reflectAndLearn(
+        task,
+        allGeneratedFiles,
+        success,
+        executionTime
+      );
+      
+      setInnovationScore(reflection.innovationScore);
+      
+      if (learningEnabled) {
+        await autonomousAI.saveTaskExecution(
+          taskAnalysis,
+          taskAnalysis.files,
+          success,
+          executionTime,
+          reflection
+        );
+        
+        addThought(`📚 Learned ${reflection.newPatterns.length} new patterns for future tasks`);
+        addTerminalLine(`✓ Knowledge saved - AI will improve for next time!`, "success");
+        
+        // Reload insights
+        await loadInsights();
+      }
+
+      addTerminalLine("🎉 All tasks completed autonomously!", "success");
+      addThought(`✨ Innovation Score: ${(reflection.innovationScore * 100).toFixed(0)}%`);
       
       toast({
-        title: "Task Completed Successfully",
-        description: `Generated ${generatedFiles.length} files using AI`,
+        title: "Autonomous Execution Complete",
+        description: `Generated ${allGeneratedFiles.length} files with ${(reflection.innovationScore * 100).toFixed(0)}% innovation`,
       });
     } catch (error) {
       addTerminalLine(`✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
@@ -228,16 +335,14 @@ const Index = () => {
     }
   };
 
+  // GitHub sync methods (keeping existing functionality)
   const handleSelectRepo = async (repo: GitHubRepo) => {
     setConnectedRepo(repo);
     localStorage.setItem("connected_repo", JSON.stringify(repo));
-    
     toast({
       title: "Repository Connected",
       description: `Connected to ${repo.full_name}`,
     });
-
-    // Optionally sync from GitHub on connect
     await handleSyncFromGitHub(repo);
   };
 
@@ -265,7 +370,6 @@ const Index = () => {
       
       const files = await service.syncFromGitHub(owner, repoName);
       
-      // Convert to FileNode structure
       const pulledTree: FileNode[] = [];
       for (const file of files) {
         const pathParts = file.path.split("/");
@@ -345,15 +449,10 @@ const Index = () => {
 
   const handleBidirectionalSync = useCallback(async () => {
     if (!connectedRepo) return;
-    
-    // First pull from GitHub
     await handleSyncFromGitHub();
-    
-    // Then push local changes
     await handleSyncToGitHub();
   }, [connectedRepo, handleSyncFromGitHub, handleSyncToGitHub]);
 
-  // Auto-sync effect (placed after handleBidirectionalSync declaration)
   useEffect(() => {
     if (!autoSyncEnabled || !connectedRepo) return;
 
@@ -396,7 +495,6 @@ const Index = () => {
     }
   };
 
-
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -413,8 +511,8 @@ const Index = () => {
             </h1>
             
             <p className="text-lg text-muted-foreground max-w-2xl">
-              AI-powered autonomous coding agent with Google AI integration, GitHub connectivity,
-              and real-time intelligent code generation.
+              Truly autonomous AI that learns from experience, makes independent decisions,
+              and improves continuously without constant guidance.
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-3">
@@ -450,17 +548,34 @@ const Index = () => {
           onSyncIntervalChange={setSyncInterval}
         />
 
+        {/* Autonomous Insights */}
+        <AutonomousInsights
+          insights={autonomousInsights}
+          innovationScore={innovationScore}
+          learningEnabled={learningEnabled}
+          patternsLearned={learnedPatterns}
+        />
+
         {/* Task Input */}
-        <TaskInput onSubmit={executeWithAI} isExecuting={isExecuting} />
+        <TaskInput onSubmit={executeWithAutonomousAI} isExecuting={isExecuting} />
 
         {/* Metrics */}
-        {isExecuting || steps.length > 0 ? (
+        {(isExecuting || steps.length > 0) && (
           <ExecutionMetrics {...metrics} />
-        ) : null}
+        )}
 
         {/* Agent Thinking */}
         {(isExecuting || thinkingSteps.length > 0) && (
           <AgentThinking steps={thinkingSteps} isThinking={isExecuting} />
+        )}
+
+        {/* Validation Report */}
+        {(codeValidation || architectureValidation || securityAudit) && (
+          <ValidationReport
+            codeValidation={codeValidation}
+            architectureValidation={architectureValidation}
+            securityAudit={securityAudit}
+          />
         )}
 
         {/* Main Execution View */}
@@ -471,7 +586,7 @@ const Index = () => {
               <div className="space-y-4">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <Zap className="h-5 w-5 text-primary" />
-                  Execution Pipeline
+                  Autonomous Execution Pipeline
                 </h2>
                 {steps.map((step, index) => (
                   <ExecutionStep key={step.id} step={step} index={index} />

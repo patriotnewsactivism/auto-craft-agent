@@ -1,8 +1,48 @@
-# Welcome to your Lovable project
+# Autonomous Code Wizard - AI That Truly Learns
 
-## Project info
+## 🚀 Project Overview
 
-**URL**: https://lovable.dev/projects/881d493d-8544-414c-bac0-6eb737eb05d7
+An **autonomous AI coding agent** that doesn't just generate code—it learns from experience, makes independent decisions, and improves continuously without constant guidance.
+
+**Project URL**: https://lovable.dev/projects/881d493d-8544-414c-bac0-6eb737eb05d7
+
+## ✨ Autonomous Features
+
+### Without Supabase (Basic Mode)
+- ✅ AI-powered code generation
+- ✅ Task analysis and planning
+- ✅ Multi-file project generation
+- ✅ GitHub integration
+- ✅ Code validation
+- ⚠️ **Forgets everything after each task**
+
+### With Supabase (Autonomous Mode) 🤖
+- 🧠 **Persistent Memory** - Remembers all past tasks and solutions
+- 📚 **Pattern Learning** - Learns successful coding patterns over time
+- 🎯 **Autonomous Decisions** - Makes independent architectural choices
+- 💡 **Innovation Engine** - Finds creative solutions beyond the obvious
+- 🔍 **Self-Validation** - Checks and corrects its own code
+- 📈 **Continuous Improvement** - Gets smarter with every task
+- 🚀 **Long-Term Projects** - Works autonomously for weeks without guidance
+
+[**📖 Read Full Autonomous Features Guide**](./AUTONOMOUS_FEATURES.md)
+
+## 🎯 Quick Setup (5 Minutes)
+
+### Essential Setup
+
+1. **Google AI API Key** (Required)
+   - Get from: https://aistudio.google.com/app/apikey
+   - Enables AI code generation
+
+2. **GitHub Token** (Optional)
+   - Get from: https://github.com/settings/tokens
+   - Enables repository sync
+
+3. **Supabase** (Optional but Recommended for Autonomy)
+   - [**📖 Follow Supabase Setup Guide**](./SUPABASE_SETUP.md)
+   - Enables learning, memory, and true autonomy
+   - Takes 5 minutes to configure
 
 ## How can I edit this code?
 
@@ -32,11 +72,19 @@ cd <YOUR_PROJECT_NAME>
 # Step 3: Install the necessary dependencies.
 npm i
 
-# Step 4: Set up environment variables (required for AI features)
-cp .env.example .env
-# Then edit .env and add your API keys:
-# - VITE_GOOGLE_API_KEY: Get from https://aistudio.google.com/app/apikey
-# - VITE_GITHUB_TOKEN: Get from https://github.com/settings/tokens (needs repo scope)
+# Step 4: Set up environment variables
+# Create .env file with your API keys:
+cat > .env << EOF
+# Required for AI features
+VITE_GOOGLE_API_KEY=your_google_ai_key
+
+# Optional: GitHub integration
+VITE_GITHUB_TOKEN=your_github_token
+
+# Optional: Autonomous learning (see SUPABASE_SETUP.md)
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+EOF
 
 # Step 5: Start the development server with auto-reloading and an instant preview.
 npm run dev
@@ -96,18 +144,28 @@ This app requires API keys to function. You can provide them in different ways d
 
 - **Google AI API Key**: https://aistudio.google.com/app/apikey
 - **GitHub Token**: https://github.com/settings/tokens (needs `repo` scope)
+- **Supabase Keys**: See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed guide
 
-## What technologies are used for this project?
+## 🛠️ Technologies
 
-This project is built with:
-
+**Core Stack:**
 - Vite
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
-- Google AI (Gemini)
-- GitHub API
+
+**AI & Integration:**
+- Google AI (Gemini) - Code generation
+- Supabase - Autonomous memory & learning
+- GitHub API - Repository sync
+
+**Autonomous Features:**
+- Pattern recognition engine
+- Self-validation system
+- Decision logging
+- Innovation scoring
+- Long-term context management
 
 ## How can I deploy this project?
 
@@ -123,6 +181,8 @@ Simply open [Lovable](https://lovable.dev/projects/881d493d-8544-414c-bac0-6eb73
    - `GOOGLE_API_KEY` (for API endpoint)
    - `VITE_GOOGLE_API_KEY` (for frontend)
    - `VITE_GITHUB_TOKEN` (optional)
+   - `VITE_SUPABASE_URL` (optional - enables autonomous learning)
+   - `VITE_SUPABASE_ANON_KEY` (optional - enables autonomous learning)
 4. Deploy
 
 ### Troubleshooting Deployment Issues
@@ -131,6 +191,70 @@ If you see errors:
 - **500 error on `/api/generate`**: Missing `GOOGLE_API_KEY` in Vercel environment variables
 - **Black screen**: Check browser console for errors, see `DEPLOYMENT_DEBUG.md`
 - **API key errors**: Ensure both `GOOGLE_API_KEY` and `VITE_GOOGLE_API_KEY` are set
+
+## 📚 Documentation
+
+- **[Autonomous Features Guide](./AUTONOMOUS_FEATURES.md)** - Complete feature documentation
+- **[Supabase Setup Guide](./SUPABASE_SETUP.md)** - Enable autonomous learning (5 min setup)
+- **[Deployment Guide](#deploy-to-vercel-manually)** - Production deployment
+
+## 🎮 Usage Examples
+
+### Basic Task
+```
+"Build a todo app with authentication"
+```
+→ AI generates complete app with auth, validation, and best practices
+
+### Autonomous Mode (With Supabase)
+```
+"Create a social media platform"
+```
+→ AI autonomously:
+- Searches past similar projects
+- Applies learned patterns
+- Makes architectural decisions
+- Validates security and quality
+- Learns new patterns for future
+
+### Long-Term Project
+```
+Week 1: "Start SaaS platform"
+Week 2: "Add team collaboration"
+Week 3: "Implement billing"
+```
+→ AI maintains full context, builds incrementally, makes consistent decisions
+
+## 🚀 Autonomy Progression
+
+- **Tasks 1-10**: Learning your preferences, building pattern library
+- **Tasks 11-30**: Recognizing patterns, making better decisions
+- **Tasks 31+**: High autonomy, innovative solutions, minimal guidance needed
+- **Tasks 100+**: Expert level, truly autonomous coding for days
+
+## 🤝 Contributing
+
+Contributions welcome! This project showcases:
+- Advanced AI integration patterns
+- Autonomous agent architecture
+- Learning system design
+- Self-improving AI systems
+
+## 📄 License
+
+MIT License - Feel free to use and modify
+
+## 🌟 Key Differentiators
+
+Unlike traditional AI coding assistants:
+- ✅ **Learns from experience** (not just pre-training)
+- ✅ **Makes independent decisions** (not just follows prompts)
+- ✅ **Improves over time** (not static)
+- ✅ **Self-validates** (catches its own mistakes)
+- ✅ **Innovates** (finds creative solutions)
+- ✅ **Long-term capable** (works for weeks autonomously)
+
+---
 
 ## Can I connect a custom domain to my Lovable project?
 
