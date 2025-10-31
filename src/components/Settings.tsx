@@ -3,8 +3,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings as SettingsIcon, Eye, EyeOff, CheckCircle } from "lucide-react";
+import { Settings as SettingsIcon, Eye, EyeOff, CheckCircle, Zap, Brain, Gauge, Mic } from "lucide-react";
+import { getAllModels } from "@/lib/geminiModels";
 
 interface SettingsProps {
   open: boolean;
@@ -13,6 +15,7 @@ interface SettingsProps {
 
 export const Settings = ({ open, onOpenChange }: SettingsProps) => {
   const [googleKey, setGoogleKey] = useState("");
+  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash");
   const [githubToken, setGithubToken] = useState("");
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseKey, setSupabaseKey] = useState("");
@@ -20,6 +23,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
   const [showGithub, setShowGithub] = useState(false);
   const [showSupabase, setShowSupabase] = useState(false);
   const { toast } = useToast();
+  const availableModels = getAllModels();
 
   // Check for environment variables
   // VITE_ prefix exposes them to the client-side (browser)
@@ -31,11 +35,13 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
   useEffect(() => {
     // Prioritize environment variables, fall back to local storage
     const savedGoogle = googleKeyFromEnv || localStorage.getItem("google_api_key");
+    const savedModel = localStorage.getItem("gemini_model") || "gemini-2.5-flash";
     const savedGithub = githubTokenFromEnv || localStorage.getItem("github_token");
     const savedSupabaseUrl = supabaseUrlFromEnv || localStorage.getItem("supabase_url");
     const savedSupabaseKey = supabaseKeyFromEnv || localStorage.getItem("supabase_key");
     
     if (savedGoogle) setGoogleKey(savedGoogle);
+    setSelectedModel(savedModel);
     if (savedGithub) setGithubToken(savedGithub);
     if (savedSupabaseUrl) setSupabaseUrl(savedSupabaseUrl);
     if (savedSupabaseKey) setSupabaseKey(savedSupabaseKey);
@@ -46,6 +52,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
     if (googleKey && !googleKeyFromEnv) {
       localStorage.setItem("google_api_key", googleKey);
     }
+    localStorage.setItem("gemini_model", selectedModel);
     if (githubToken && !githubTokenFromEnv) {
       localStorage.setItem("github_token", githubToken);
     }
@@ -57,9 +64,16 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
     }
     toast({
       title: "Settings Saved ?",
-      description: "API keys have been securely stored in your browser and will persist across sessions. You won't need to re-enter them!",
+      description: "API keys and model preferences have been securely stored in your browser and will persist across sessions.",
     });
     onOpenChange(false);
+  };
+
+  const getModelIcon = (modelId: string) => {
+    if (modelId.includes('pro')) return <Brain className="h-4 w-4" />;
+    if (modelId.includes('flash-lite')) return <Zap className="h-4 w-4" />;
+    if (modelId.includes('audio')) return <Mic className="h-4 w-4" />;
+    return <Gauge className="h-4 w-4" />;
   };
 
   return (
@@ -117,6 +131,31 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
               >
                 Google AI Studio
               </a>
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="model">Gemini Model</Label>
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableModels.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    <div className="flex items-center gap-2">
+                      {getModelIcon(model.id)}
+                      <div>
+                        <div className="font-medium">{model.name}</div>
+                        <div className="text-xs text-muted-foreground">{model.description}</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Choose the model that best fits your needs. Flash is recommended for most tasks.
             </p>
           </div>
 

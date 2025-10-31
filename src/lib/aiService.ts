@@ -1,8 +1,42 @@
+import { getModel, getDefaultModel, type GeminiModel } from './geminiModels';
+
 export class AIService {
   private model: string;
 
-  constructor(model: string = "gemini-2.5-pro") {
+  constructor(model?: string) {
+    // Use provided model, or check localStorage, or default to gemini-2.5-flash
+    this.model = model || this.getSavedModel() || "gemini-2.5-flash";
+  }
+
+  /**
+   * Get saved model from localStorage
+   */
+  private getSavedModel(): string | null {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem("gemini_model");
+    }
+    return null;
+  }
+
+  /**
+   * Set the model to use for generation
+   */
+  setModel(model: string): void {
     this.model = model;
+  }
+
+  /**
+   * Get current model
+   */
+  getModel(): string {
+    return this.model;
+  }
+
+  /**
+   * Get model information
+   */
+  getModelInfo(): GeminiModel | undefined {
+    return getModel(this.model);
   }
 
   private getApiKey(): string | null {
