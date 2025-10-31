@@ -14,23 +14,32 @@ interface SettingsProps {
 export const Settings = ({ open, onOpenChange }: SettingsProps) => {
   const [googleKey, setGoogleKey] = useState("");
   const [githubToken, setGithubToken] = useState("");
+  const [supabaseUrl, setSupabaseUrl] = useState("");
+  const [supabaseKey, setSupabaseKey] = useState("");
   const [showGoogle, setShowGoogle] = useState(false);
   const [showGithub, setShowGithub] = useState(false);
+  const [showSupabase, setShowSupabase] = useState(false);
   const { toast } = useToast();
 
   // Check for environment variables
   // VITE_ prefix exposes them to the client-side (browser)
   const googleKeyFromEnv = import.meta.env.VITE_GOOGLE_API_KEY;
   const githubTokenFromEnv = import.meta.env.VITE_GITHUB_TOKEN;
+  const supabaseUrlFromEnv = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKeyFromEnv = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   useEffect(() => {
     // Prioritize environment variables, fall back to local storage
     const savedGoogle = googleKeyFromEnv || localStorage.getItem("google_api_key");
     const savedGithub = githubTokenFromEnv || localStorage.getItem("github_token");
+    const savedSupabaseUrl = supabaseUrlFromEnv || localStorage.getItem("supabase_url");
+    const savedSupabaseKey = supabaseKeyFromEnv || localStorage.getItem("supabase_key");
     
     if (savedGoogle) setGoogleKey(savedGoogle);
     if (savedGithub) setGithubToken(savedGithub);
-  }, [open, googleKeyFromEnv, githubTokenFromEnv]);
+    if (savedSupabaseUrl) setSupabaseUrl(savedSupabaseUrl);
+    if (savedSupabaseKey) setSupabaseKey(savedSupabaseKey);
+  }, [open, googleKeyFromEnv, githubTokenFromEnv, supabaseUrlFromEnv, supabaseKeyFromEnv]);
 
   const handleSave = () => {
     // Only save to local storage if not provided by env
@@ -40,9 +49,15 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
     if (githubToken && !githubTokenFromEnv) {
       localStorage.setItem("github_token", githubToken);
     }
+    if (supabaseUrl && !supabaseUrlFromEnv) {
+      localStorage.setItem("supabase_url", supabaseUrl);
+    }
+    if (supabaseKey && !supabaseKeyFromEnv) {
+      localStorage.setItem("supabase_key", supabaseKey);
+    }
     toast({
       title: "Settings Saved",
-      description: "API keys have been securely stored",
+      description: "API keys have been securely stored. Reload the page for Supabase changes to take effect.",
     });
     onOpenChange(false);
   };
@@ -148,6 +163,71 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
               </a>{" "}
               (needs repo scope)
             </p>
+          </div>
+
+          <div className="border-t pt-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold">Supabase - Autonomous Memory</h3>
+              <span className="text-xs text-muted-foreground">(Optional - Enables learning)</span>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="supabaseUrl">Supabase Project URL</Label>
+              <Input
+                id="supabaseUrl"
+                type="text"
+                value={supabaseUrl}
+                onChange={(e) => setSupabaseUrl(e.target.value)}
+                placeholder={supabaseUrlFromEnv ? "Loaded from environment" : "https://xxx.supabase.co"}
+                disabled={!!supabaseUrlFromEnv}
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="supabaseKey">Supabase Anon Key</Label>
+              <div className="relative">
+                <Input
+                  id="supabaseKey"
+                  type={showSupabase ? "text" : "password"}
+                  value={supabaseKey}
+                  onChange={(e) => setSupabaseKey(e.target.value)}
+                  placeholder={supabaseKeyFromEnv ? "Loaded from environment" : "eyJhbGciOi..."}
+                  className="pr-10"
+                  disabled={!!supabaseKeyFromEnv}
+                  autoComplete="off"
+                  data-form-type="other"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowSupabase(!showSupabase)}
+                  disabled={!!supabaseKeyFromEnv}
+                >
+                  {supabaseKeyFromEnv ? (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : showSupabase ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Get from{" "}
+                <a
+                  href="https://app.supabase.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Supabase Dashboard
+                </a>{" "}
+                ? Project Settings ? API
+              </p>
+            </div>
           </div>
         </div>
 
