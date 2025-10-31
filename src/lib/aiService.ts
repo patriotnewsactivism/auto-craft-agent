@@ -5,7 +5,21 @@ export class AIService {
     this.model = model;
   }
 
+  private getApiKey(): string | null {
+    // Prioritize environment variable, fall back to localStorage
+    return import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem("google_api_key");
+  }
+
   private async makeApiRequest(prompt: string): Promise<string> {
+    const apiKey = this.getApiKey();
+    
+    if (!apiKey) {
+      throw new Error(
+        'Google AI API key not configured. Please add your API key in Settings.\n' +
+        'Get your key from: https://aistudio.google.com/app/apikey'
+      );
+    }
+
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -15,6 +29,7 @@ export class AIService {
         body: JSON.stringify({
           model: this.model,
           prompt: prompt,
+          apiKey: apiKey, // Send API key with request
         }),
       });
 

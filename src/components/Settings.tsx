@@ -56,8 +56,8 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
       localStorage.setItem("supabase_key", supabaseKey);
     }
     toast({
-      title: "Settings Saved",
-      description: "API keys have been securely stored. Reload the page for Supabase changes to take effect.",
+      title: "Settings Saved ?",
+      description: "API keys have been securely stored in your browser and will persist across sessions. You won't need to re-enter them!",
     });
     onOpenChange(false);
   };
@@ -71,7 +71,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
             API Configuration
           </DialogTitle>
           <DialogDescription>
-            Configure your API keys for AI and GitHub integration
+            Configure your API keys for AI and GitHub integration. Your keys are saved locally in your browser and automatically persist.
           </DialogDescription>
         </DialogHeader>
 
