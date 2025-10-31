@@ -1,5 +1,6 @@
 import { AIService } from './aiService';
 import { supabaseService, TaskHistory, CodePattern, DecisionLog } from './supabaseService';
+import { logger } from './logger';
 
 export interface AutonomousTask {
   description: string;
@@ -30,9 +31,17 @@ export class AutonomousAI {
    * Analyzes a task with autonomous learning from past experiences
    */
   async analyzeWithMemory(task: string): Promise<AutonomousTask> {
-    // Fetch similar tasks from history
-    const similarTasks = await supabaseService.getSimilarTasks(task, 5);
-    const successfulPatterns = await supabaseService.getMostSuccessfulPatterns(10);
+    logger.info('Analysis', 'Starting task analysis with memory', `Task: ${task}`);
+    const startTime = Date.now();
+    
+    try {
+      // Fetch similar tasks from history
+      logger.debug('Analysis', 'Fetching similar tasks from history');
+      const similarTasks = await supabaseService.getSimilarTasks(task, 5);
+      logger.debug('Analysis', `Found ${similarTasks.length} similar tasks`);
+      
+      const successfulPatterns = await supabaseService.getMostSuccessfulPatterns(10);
+      logger.debug('Analysis', `Found ${successfulPatterns.length} successful patterns`);
     
     // Build context from past experiences
     const historyContext = similarTasks.length > 0
@@ -70,20 +79,37 @@ Return ONLY a JSON object:
 
 Be bold and innovative!`;
 
-    const response = await this.aiService.generateCode(prompt);
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Failed to parse AI response');
-    
-    const analysis = JSON.parse(jsonMatch[0]);
-    
-    return {
-      description: task,
-      complexity: analysis.complexity,
-      steps: analysis.steps,
-      files: analysis.files,
-      innovationOpportunities: analysis.innovationOpportunities || [],
-      learnedPatterns: analysis.learnedPatterns || []
-    };
+      logger.logApiCall('AI Analysis', 'start', 'Generating task analysis');
+      const response = await this.aiService.generateCode(prompt);
+      logger.logApiCall('AI Analysis', 'success', 'Received analysis response');
+      
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        logger.error('Analysis', 'Failed to parse AI response', 'No JSON found in response', { response: response.substring(0, 200) });
+        throw new Error('Failed to parse AI response - no JSON found');
+      }
+      
+      const analysis = JSON.parse(jsonMatch[0]);
+      const result = {
+        description: task,
+        complexity: analysis.complexity,
+        steps: analysis.steps,
+        files: analysis.files,
+        innovationOpportunities: analysis.innovationOpportunities || [],
+        learnedPatterns: analysis.learnedPatterns || []
+      };
+      
+      logger.logTiming('Analysis', 'Task analysis', Date.now() - startTime);
+      logger.success('Analysis', 'Task analysis completed', 
+        `Complexity: ${result.complexity}, Steps: ${result.steps.length}, Files: ${result.files.length}`,
+        { result }
+      );
+      
+      return result;
+    } catch (error) {
+      logger.logError('Analysis', error, 'Failed to analyze task with memory');
+      throw error;
+    }
   }
 
   /**
@@ -94,13 +120,19 @@ Be bold and innovative!`;
     context: string,
     taskContext: AutonomousTask
   ): Promise<string> {
-    // Fetch relevant patterns
-    const patterns = await supabaseService.getCodePatterns();
-    const relevantPatterns = patterns.filter(p => 
-      taskContext.learnedPatterns.some(lp => 
-        lp.toLowerCase().includes(p.pattern_type.toLowerCase())
-      )
-    );
+    logger.info('CodeGen', 'Generating code autonomously', prompt);
+    const startTime = Date.now();
+    
+    try {
+      // Fetch relevant patterns
+      logger.debug('CodeGen', 'Fetching code patterns');
+      const patterns = await supabaseService.getCodePatterns();
+      const relevantPatterns = patterns.filter(p => 
+        taskContext.learnedPatterns.some(lp => 
+          lp.toLowerCase().includes(p.pattern_type.toLowerCase())
+        )
+      );
+      logger.debug('CodeGen', `Applying ${relevantPatterns.length} relevant patterns`);
 
     const patternGuide = relevantPatterns.length > 0
       ? `\n\nApply these proven patterns:\n${relevantPatterns.map(p =>
@@ -128,7 +160,20 @@ Generate production-ready, INNOVATIVE code with:
 
 Think independently and create exceptional code!`;
 
-    return this.aiService.generateCode(fullPrompt);
+      logger.logApiCall('AI CodeGen', 'start', 'Generating code');
+      const result = await this.aiService.generateCode(fullPrompt);
+      logger.logApiCall('AI CodeGen', 'success', 'Code generated');
+      
+      logger.logTiming('CodeGen', 'Code generation', Date.now() - startTime);
+      logger.success('CodeGen', 'Code generated successfully', 
+        `Generated ${result.length} characters of code`
+      );
+      
+      return result;
+    } catch (error) {
+      logger.logError('CodeGen', error, 'Failed to generate code autonomously');
+      throw error;
+    }
   }
 
   /**
@@ -140,6 +185,12 @@ Think independently and create exceptional code!`;
     success: boolean,
     executionTime: number
   ): Promise<ReflectionResult> {
+    logger.info('Learning', 'Starting reflection and learning', 
+      `Task: ${task}, Success: ${success}, Time: ${executionTime}s`
+    );
+    const startTime = Date.now();
+    
+    try {
     const codeContext = generatedFiles.map(f => 
       `File: ${f.path}\n${f.content.substring(0, 500)}...`
     ).join('\n\n');
@@ -169,28 +220,43 @@ Analyze and return ONLY a JSON object:
   "innovationScore": 0.0-1.0 (how innovative was the solution)
 }`;
 
-    const response = await this.aiService.generateCode(prompt);
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return {
-        strengths: [],
-        improvements: [],
-        newPatterns: [],
-        innovationScore: 0.5
-      };
-    }
+      logger.logApiCall('AI Reflection', 'start', 'Analyzing execution for learning');
+      const response = await this.aiService.generateCode(prompt);
+      logger.logApiCall('AI Reflection', 'success', 'Reflection completed');
+      
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        logger.warning('Learning', 'Failed to parse reflection response, using defaults');
+        return {
+          strengths: [],
+          improvements: [],
+          newPatterns: [],
+          innovationScore: 0.5
+        };
+      }
 
-    const reflection = JSON.parse(jsonMatch[0]);
-    
-    // Save learned patterns to database
-    for (const pattern of reflection.newPatterns || []) {
-      await supabaseService.saveCodePattern({
-        ...pattern,
-        times_used: 1
-      });
-    }
+      const reflection = JSON.parse(jsonMatch[0]);
+      
+      // Save learned patterns to database
+      logger.debug('Learning', `Saving ${reflection.newPatterns?.length || 0} new patterns`);
+      for (const pattern of reflection.newPatterns || []) {
+        await supabaseService.saveCodePattern({
+          ...pattern,
+          times_used: 1
+        });
+      }
 
-    return reflection;
+      logger.logTiming('Learning', 'Reflection and learning', Date.now() - startTime);
+      logger.success('Learning', 'Reflection completed', 
+        `Innovation score: ${reflection.innovationScore}, New patterns: ${reflection.newPatterns?.length || 0}`,
+        { reflection }
+      );
+      
+      return reflection;
+    } catch (error) {
+      logger.logError('Learning', error, 'Failed during reflection and learning');
+      throw error;
+    }
   }
 
   /**
@@ -200,6 +266,11 @@ Analyze and return ONLY a JSON object:
     decisionPoint: string,
     options: string[]
   ): Promise<{ chosen: string; reasoning: string }> {
+    logger.info('Decision', `Making autonomous decision at: ${decisionPoint}`, 
+      `Options: ${options.join(', ')}`
+    );
+    
+    try {
     const prompt = `As an autonomous AI, make an independent decision.
 
 Decision Point: ${decisionPoint}
@@ -217,25 +288,31 @@ Return ONLY JSON:
   "reasoning": "detailed explanation of why"
 }`;
 
-    const response = await this.aiService.generateCode(prompt);
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { chosen: options[0], reasoning: 'Default choice' };
+      const response = await this.aiService.generateCode(prompt);
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        logger.warning('Decision', 'Failed to parse decision response, using default');
+        return { chosen: options[0], reasoning: 'Default choice' };
+      }
+
+      const decision = JSON.parse(jsonMatch[0]);
+      
+      // Log decision for learning
+      await supabaseService.logDecision({
+        task_id: this.taskId,
+        decision_point: decisionPoint,
+        options_considered: options,
+        chosen_option: decision.chosen,
+        reasoning: decision.reasoning,
+        outcome_success: true // Will be updated later
+      });
+
+      logger.success('Decision', `Decision made: ${decision.chosen}`, decision.reasoning);
+      return decision;
+    } catch (error) {
+      logger.logError('Decision', error, 'Failed to make autonomous decision');
+      throw error;
     }
-
-    const decision = JSON.parse(jsonMatch[0]);
-    
-    // Log decision for learning
-    await supabaseService.logDecision({
-      task_id: this.taskId,
-      decision_point: decisionPoint,
-      options_considered: options,
-      chosen_option: decision.chosen,
-      reasoning: decision.reasoning,
-      outcome_success: true // Will be updated later
-    });
-
-    return decision;
   }
 
   /**

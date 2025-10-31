@@ -20,34 +20,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Get the Google AI API key from Vercel Environment Variables
-  const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-
-  if (!GOOGLE_API_KEY) {
-    console.error('GOOGLE_API_KEY not found in environment variables.');
-    console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('GOOGLE')));
-    return res.status(500).json({ 
-      error: 'API key not configured',
-      details: 'GOOGLE_API_KEY environment variable is missing. Please configure it in your Vercel project settings.',
-      hint: 'Set GOOGLE_API_KEY (without VITE_ prefix) in Vercel environment variables'
-    });
-  }
-
   try {
-    // Initialize the Google AI client
-    const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-    
-    // Using gemini-pro as it's stable
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-    // Get the prompt from the request body
-    const { prompt, model: requestedModel } = req.body as { prompt?: string; model?: string };
+    // Get the prompt and API key from the request body
+    const { prompt, model: requestedModel, apiKey } = req.body as { 
+      prompt?: string; 
+      model?: string;
+      apiKey?: string;
+    };
 
     if (!prompt) {
       return res.status(400).json({ error: 'No prompt provided' });
     }
 
-    console.log(`Generating content with model: ${requestedModel || 'gemini-pro'}`);
+    // Prioritize API key from request body, fall back to environment variable
+    const GOOGLE_API_KEY = apiKey || process.env.GOOGLE_API_KEY;
+
+    if (!GOOGLE_API_KEY) {
+      console.error('GOOGLE_API_KEY not found in request or environment variables.');
+      return res.status(400).json({ 
+        error: 'API key not configured',
+        details: 'Please configure your Google AI API key in Settings. The API key must be provided either in the request or as an environment variable.',
+        hint: 'Click the Settings icon and add your Google AI API key from https://aistudio.google.com/app/apikey'
+      });
+    }
+
+    // Initialize the Google AI client
+    const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+    
+    // Use the model specified in the request, default to gemini-2.5-flash for balanced performance
+    const modelName = requestedModel || 'gemini-2.5-flash';
+    const model = genAI.getGenerativeModel({ model: modelName });
+
+    console.log(`Generating content with model: ${modelName}`);
 
     // Make the secure, server-to-server request to Google AI
     const result = await model.generateContent(prompt);

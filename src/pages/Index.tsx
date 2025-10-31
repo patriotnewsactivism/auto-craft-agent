@@ -11,6 +11,8 @@ import { GitHubBrowser } from "@/components/GitHubBrowser";
 import { SyncStatus } from "@/components/SyncStatus";
 import { AutonomousInsights } from "@/components/AutonomousInsights";
 import { ValidationReport } from "@/components/ValidationReport";
+import { DetailedExecutionLog, ExecutionLogEntry } from "@/components/DetailedExecutionLog";
+import { CurrentStatusIndicator } from "@/components/CurrentStatusIndicator";
 import { Bot, Zap, Settings as SettingsIcon, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +21,7 @@ import { AutonomousValidator } from "@/lib/autonomousValidator";
 import { supabaseService } from "@/lib/supabaseService";
 import { GitHubService, GitHubRepo } from "@/lib/githubService";
 import { ExportService } from "@/lib/exportService";
+import { logger } from "@/lib/logger";
 
 interface FileNode {
   name: string;
@@ -63,6 +66,15 @@ const Index = () => {
   const [architectureValidation, setArchitectureValidation] = useState<any>(null);
   const [securityAudit, setSecurityAudit] = useState<any>(null);
   
+  // New transparency features
+  const [executionLogs, setExecutionLogs] = useState<ExecutionLogEntry[]>([]);
+  const [currentStatus, setCurrentStatus] = useState<{
+    task: string | null;
+    progress: number;
+    status: "idle" | "analyzing" | "generating" | "validating" | "learning" | "error" | "completed";
+    details?: string;
+  }>({ task: null, progress: 0, status: "idle" });
+  
   const syncInFlightRef = useRef(false);
   const { toast } = useToast();
 
@@ -81,6 +93,14 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [isExecuting, startTime]);
 
+  // Subscribe to logger updates
+  useEffect(() => {
+    const unsubscribe = logger.subscribe((logs) => {
+      setExecutionLogs(logs);
+    });
+    return unsubscribe;
+  }, []);
+
   // Load settings and insights on mount
   useEffect(() => {
     const savedRepo = localStorage.getItem("connected_repo");
@@ -91,7 +111,7 @@ const Index = () => {
       try {
         setConnectedRepo(JSON.parse(savedRepo));
       } catch (e) {
-        console.error("Failed to parse saved repo", e);
+        logger.error("Settings", "Failed to parse saved repo", String(e));
       }
     }
     if (savedAutoSync) setAutoSyncEnabled(savedAutoSync === "true");
@@ -113,11 +133,13 @@ const Index = () => {
 
   const loadInsights = async () => {
     try {
+      logger.info("Insights", "Loading autonomous insights");
       const ai = new AutonomousAI();
       const insights = await ai.getAutonomousInsights();
       setAutonomousInsights(insights);
+      logger.success("Insights", `Loaded ${insights.length} insights`);
     } catch (error) {
-      console.error("Failed to load insights:", error);
+      logger.logError("Insights", error, "Failed to load autonomous insights");
     }
   };
 
@@ -133,6 +155,7 @@ const Index = () => {
   const executeWithAutonomousAI = async (task: string) => {
     const apiKey = import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem("google_api_key");
     if (!apiKey) {
+      logger.error("Execution", "API key not configured", "User needs to add Google AI API key in settings");
       toast({
         title: "API Key Required",
         description: "Please configure your Google AI API key in settings",
@@ -142,6 +165,9 @@ const Index = () => {
       return;
     }
 
+    logger.clearLogs();
+    logger.info("Execution", "Starting new execution", `Task: ${task}`);
+    
     setIsExecuting(true);
     setSteps([]);
     setFileTree([]);
@@ -153,6 +179,7 @@ const Index = () => {
     setArchitectureValidation(null);
     setSecurityAudit(null);
     setStartTime(Date.now());
+    setCurrentStatus({ task, progress: 0, status: "analyzing", details: "Initializing autonomous AI..." });
 
     addTerminalLine("🤖 Autonomous Code Wizard v4.0 - Now with Self-Learning AI", "output");
     addTerminalLine(`Task: ${task}`, "command");
@@ -168,8 +195,10 @@ const Index = () => {
       const validator = new AutonomousValidator();
       
       // Step 1: Analyze with memory and learning
+      setCurrentStatus({ task, progress: 10, status: "analyzing", details: "Analyzing task with past experiences..." });
       addThought("📊 Analyzing task with past experiences and learned patterns...");
       const taskAnalysis = await autonomousAI.analyzeWithMemory(task);
+      setCurrentStatus({ task, progress: 20, status: "analyzing", details: "Task analysis complete" });
       
       addThought(`✨ Innovation Score: ${(taskAnalysis.innovationOpportunities.length / 3 * 100).toFixed(0)}%`);
       addThought(`🎯 Complexity: ${taskAnalysis.complexity.toUpperCase()}`);
@@ -187,15 +216,24 @@ const Index = () => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Step 2: Plan autonomous execution
+      setCurrentStatus({ task, progress: 25, status: "analyzing", details: "Creating autonomous execution plan..." });
       addThought("🚀 Creating autonomous execution plan...");
       const executionPlan = await autonomousAI.planExecution(taskAnalysis);
+      setCurrentStatus({ task, progress: 30, status: "generating", details: `Executing ${executionPlan.length} steps` });
       
       const generatedFiles: FileNode[] = [];
       const allGeneratedFiles: Array<{ path: string; content: string }> = [];
 
       // Step 3: Execute each step autonomously
       for (let i = 0; i < executionPlan.length; i++) {
+        const stepProgress = 30 + Math.floor((i / executionPlan.length) * 40);
         const stepDesc = executionPlan[i];
+        setCurrentStatus({ 
+          task, 
+          progress: stepProgress, 
+          status: "generating", 
+          details: `Step ${i + 1}/${executionPlan.length}: ${stepDesc}` 
+        });
         const step: Step = {
           id: (i + 1).toString(),
           title: stepDesc,
@@ -272,6 +310,7 @@ const Index = () => {
 
       // Step 4: Comprehensive validation
       if (allGeneratedFiles.length > 0) {
+        setCurrentStatus({ task, progress: 70, status: "validating", details: "Running validation checks..." });
         addThought("🛡️ Running autonomous architecture and security validation...");
         
         const [archValidation, secAudit] = await Promise.all([
@@ -290,6 +329,7 @@ const Index = () => {
       const executionTime = Math.floor((Date.now() - startTime) / 1000);
       const success = metrics.errors === 0;
       
+      setCurrentStatus({ task, progress: 85, status: "learning", details: "Reflecting and learning from execution..." });
       addThought("🧠 Reflecting on execution and learning...");
       const reflection = await autonomousAI.reflectAndLearn(
         task,
@@ -316,14 +356,21 @@ const Index = () => {
         await loadInsights();
       }
 
+      setCurrentStatus({ task, progress: 100, status: "completed", details: "All tasks completed!" });
       addTerminalLine("🎉 All tasks completed autonomously!", "success");
       addThought(`✨ Innovation Score: ${(reflection.innovationScore * 100).toFixed(0)}%`);
+      
+      logger.success("Execution", "Task completed successfully", 
+        `Generated ${allGeneratedFiles.length} files with ${(reflection.innovationScore * 100).toFixed(0)}% innovation`
+      );
       
       toast({
         title: "Autonomous Execution Complete",
         description: `Generated ${allGeneratedFiles.length} files with ${(reflection.innovationScore * 100).toFixed(0)}% innovation`,
       });
     } catch (error) {
+      setCurrentStatus({ task: task, progress: 0, status: "error", details: error instanceof Error ? error.message : "Unknown error" });
+      logger.logError("Execution", error, "Task execution failed");
       addTerminalLine(`✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
       toast({
         title: "Execution Failed",
@@ -559,10 +606,21 @@ const Index = () => {
         {/* Task Input */}
         <TaskInput onSubmit={executeWithAutonomousAI} isExecuting={isExecuting} />
 
+        {/* Current Status Indicator */}
+        <CurrentStatusIndicator
+          currentTask={currentStatus.task}
+          progress={currentStatus.progress}
+          status={currentStatus.status}
+          details={currentStatus.details}
+        />
+
         {/* Metrics */}
         {(isExecuting || steps.length > 0) && (
           <ExecutionMetrics {...metrics} />
         )}
+
+        {/* Detailed Execution Log */}
+        <DetailedExecutionLog logs={executionLogs} isExecuting={isExecuting} />
 
         {/* Agent Thinking */}
         {(isExecuting || thinkingSteps.length > 0) && (

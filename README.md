@@ -2,7 +2,7 @@
 
 ## 🚀 Project Overview
 
-An **autonomous AI coding agent** that doesn't just generate code—it learns from experience, makes independent decisions, and improves continuously without constant guidance.
+An **autonomous AI coding agent** powered by Google Gemini 2.5 models that doesn't just generate code—it learns from experience, makes independent decisions, and improves continuously without constant guidance.
 
 **Project URL**: https://lovable.dev/projects/881d493d-8544-414c-bac0-6eb737eb05d7
 
@@ -36,9 +36,10 @@ An **autonomous AI coding agent** that doesn't just generate code—it learns fr
 
 ### Essential Setup
 
-1. **Google AI API Key** (Required)
+1. **Google Gemini API Key** (Required)
    - Get from: https://aistudio.google.com/app/apikey
-   - Enables AI code generation
+   - Enables AI code generation with Gemini 2.5 models
+   - [Quick Setup Guide](./GEMINI_SETUP.md) | [Model Comparison](./GEMINI_MODELS_GUIDE.md)
 
 2. **GitHub Token** (Optional)
    - Get from: https://github.com/settings/tokens
