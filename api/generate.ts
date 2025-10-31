@@ -47,10 +47,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Initialize the Google AI client
     const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
     
-    // Using gemini-pro as it's stable and widely available
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Using gemini-1.5-pro as it's the latest and most capable model
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
-    console.log(`Generating content with model: ${requestedModel || 'gemini-pro'}`);
+    console.log(`Generating content with model: ${requestedModel || 'gemini-1.5-pro'}`);
 
     // Make the secure, server-to-server request to Google AI
     const result = await model.generateContent(prompt);

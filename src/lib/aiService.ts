@@ -1,7 +1,7 @@
 export class AIService {
   private model: string;
 
-  constructor(model: string = "gemini-pro") {
+  constructor(model: string = "gemini-1.5-pro") {
     this.model = model;
   }
 
