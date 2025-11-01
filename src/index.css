@@ -8,46 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Modern Cyberpunk Dark Theme - Sleek Electric Blue & Magenta */
-    --background: 220 26% 5%;
+    /* Modern Slate & Emerald Tech Theme - Professional & Sharp */
+    --background: 215 28% 7%;
     --foreground: 210 40% 98%;
 
-    --card: 220 24% 7%;
+    --card: 215 28% 9%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 220 24% 7%;
+    --popover: 215 28% 9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 193 82% 55%;
-    --primary-foreground: 220 26% 5%;
+    --primary: 142 76% 36%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 220 20% 12%;
+    --secondary: 215 25% 13%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 15% 15%;
-    --muted-foreground: 220 10% 60%;
+    --muted: 215 20% 16%;
+    --muted-foreground: 215 16% 60%;
 
-    --accent: 316 70% 58%;
-    --accent-foreground: 220 26% 5%;
+    --accent: 173 58% 39%;
+    --accent-foreground: 210 40% 98%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 20% 16%;
-    --input: 220 18% 12%;
-    --ring: 193 82% 55%;
+    --border: 215 20% 18%;
+    --input: 215 22% 13%;
+    --ring: 142 76% 36%;
 
     --radius: 0.5rem;
 
-    /* Cyberpunk glow effects */
-    --glow-electric: 193 82% 55%;
-    --glow-neon: 316 70% 58%;
+    /* Tech accent effects */
+    --glow-emerald: 142 76% 36%;
+    --glow-teal: 173 58% 39%;
     
-    --gradient-tech: linear-gradient(135deg, hsl(193 82% 55%), hsl(316 70% 58%));
-    --gradient-card: linear-gradient(145deg, hsl(220 24% 7%), hsl(220 24% 9%));
+    --gradient-tech: linear-gradient(135deg, hsl(142 76% 36%), hsl(173 58% 39%));
+    --gradient-card: linear-gradient(145deg, hsl(215 28% 9%), hsl(215 28% 11%));
     
-    --shadow-glow: 0 0 30px hsl(var(--glow-electric) / 0.15);
-    --shadow-glow-hover: 0 0 40px hsl(var(--glow-electric) / 0.25);
+    --shadow-glow: 0 0 30px hsl(var(--glow-emerald) / 0.12);
+    --shadow-glow-hover: 0 0 40px hsl(var(--glow-emerald) / 0.2);
   }
 
   * {
