@@ -68,7 +68,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
     // Open GitHub personal access token page
     window.open('https://github.com/settings/tokens/new?description=Autonomous%20Code%20Wizard&scopes=repo', '_blank');
     toast({
-      title: "?? Create GitHub Token",
+      title: "Create GitHub Token",
       description: "Copy your token and paste it below",
     });
   };
@@ -77,7 +77,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
     // Open Google AI Studio to get API key
     window.open('https://aistudio.google.com/app/apikey', '_blank');
     toast({
-      title: "?? Get Your API Key",
+      title: "Get Your API Key",
       description: "Copy your key and paste it below",
     });
   };
@@ -86,7 +86,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
     // Open Supabase dashboard
     window.open('https://app.supabase.com', '_blank');
     toast({
-      title: "?? Supabase Dashboard",
+      title: "Supabase Dashboard",
       description: "Copy your project URL and anon key from Settings > API",
     });
   };
@@ -103,7 +103,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
       setSupabaseUrl("");
     }
     toast({
-      title: "?? Logged out",
+      title: "Logged out",
       description: `Disconnected from ${provider}`,
     });
   };
@@ -124,7 +124,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
       localStorage.setItem("supabase_key", supabaseKey);
     }
     toast({
-      title: "? Settings Saved",
+      title: "Settings Saved",
       description: "Your configuration has been updated successfully.",
     });
     onOpenChange(false);
@@ -223,7 +223,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
           {/* Google AI OAuth */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="h-5 w-5 text-primary">??</div>
+              <div className="h-5 w-5 text-primary">G</div>
               <Label className="text-base font-semibold">Google AI (Gemini)</Label>
             </div>
             
@@ -309,7 +309,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="h-5 w-5 text-accent">??</div>
+                <div className="h-5 w-5 text-accent">S</div>
                 <Label className="text-base font-semibold">Supabase</Label>
               </div>
               <span className="text-xs text-muted-foreground bg-accent/10 px-2 py-1 rounded">Optional</span>
