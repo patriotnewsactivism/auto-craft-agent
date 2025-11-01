@@ -78,7 +78,8 @@ const Index = () => {
   const syncInFlightRef = useRef(false);
   const { toast } = useToast();
 
-  const learningEnabled = supabaseService.isReady();
+  // Learning is ALWAYS enabled now with localStorage fallback!
+  const learningEnabled = true;
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -181,14 +182,12 @@ const Index = () => {
     setStartTime(Date.now());
     setCurrentStatus({ task, progress: 0, status: "analyzing", details: "Initializing autonomous AI..." });
 
-    addTerminalLine("🤖 Autonomous Code Wizard v4.0 - Now with Self-Learning AI", "output");
+    addTerminalLine("🤖 Autonomous Code Wizard v5.0 - Self-Learning AI ALWAYS ACTIVE!", "output");
     addTerminalLine(`Task: ${task}`, "command");
+    addTerminalLine("🧠 Learning mode: ALWAYS ON - Getting smarter with every command!", "output");
     
-    if (learningEnabled) {
-      addThought("🧠 Autonomous learning ENABLED - I'll learn from this task");
-    } else {
-      addThought("💡 Enable Supabase for autonomous learning and memory");
-    }
+    addThought("🧠 Self-learning AI ACTIVE - Learning from this task to improve future performance");
+    addThought("💾 All learning persists locally - I remember everything!");
 
     try {
       const autonomousAI = new AutonomousAI();
@@ -325,7 +324,7 @@ const Index = () => {
         addTerminalLine(`✓ Security Score: ${secAudit.score}/100`, "output");
       }
 
-      // Step 5: Self-reflection and learning
+      // Step 5: Self-reflection and learning (ALWAYS ACTIVE!)
       const executionTime = Math.floor((Date.now() - startTime) / 1000);
       const success = metrics.errors === 0;
       
@@ -340,21 +339,21 @@ const Index = () => {
       
       setInnovationScore(reflection.innovationScore);
       
-      if (learningEnabled) {
-        await autonomousAI.saveTaskExecution(
-          taskAnalysis,
-          taskAnalysis.files,
-          success,
-          executionTime,
-          reflection
-        );
-        
-        addThought(`📚 Learned ${reflection.newPatterns.length} new patterns for future tasks`);
-        addTerminalLine(`✓ Knowledge saved - AI will improve for next time!`, "success");
-        
-        // Reload insights
-        await loadInsights();
-      }
+      // ALWAYS save learning - it's always active now!
+      await autonomousAI.saveTaskExecution(
+        taskAnalysis,
+        taskAnalysis.files,
+        success,
+        executionTime,
+        reflection
+      );
+      
+      addThought(`📚 Learned ${reflection.newPatterns.length} new patterns - I'm getting smarter!`);
+      addTerminalLine(`✓ Knowledge saved locally - I'll be even better next time!`, "success");
+      addTerminalLine(`🚀 Self-learning AI continuously improving from every task`, "success");
+      
+      // Reload insights
+      await loadInsights();
 
       setCurrentStatus({ task, progress: 100, status: "completed", details: "All tasks completed!" });
       addTerminalLine("🎉 All tasks completed autonomously!", "success");

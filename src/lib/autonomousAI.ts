@@ -1,5 +1,7 @@
 import { AIService } from './aiService';
-import { supabaseService, TaskHistory, CodePattern, DecisionLog } from './supabaseService';
+import { TaskHistory, CodePattern, DecisionLog } from './supabaseService';
+import { unifiedLearning } from './unifiedLearningService';
+import { devPatterns } from './developerPatterns';
 import { logger } from './logger';
 
 export interface AutonomousTask {
@@ -35,13 +37,17 @@ export class AutonomousAI {
     const startTime = Date.now();
     
     try {
-      // Fetch similar tasks from history
+      // Fetch similar tasks from history (always works now!)
       logger.debug('Analysis', 'Fetching similar tasks from history');
-      const similarTasks = await supabaseService.getSimilarTasks(task, 5);
+      const similarTasks = await unifiedLearning.getSimilarTasks(task, 5);
       logger.debug('Analysis', `Found ${similarTasks.length} similar tasks`);
       
-      const successfulPatterns = await supabaseService.getMostSuccessfulPatterns(10);
+      const successfulPatterns = await unifiedLearning.getMostSuccessfulPatterns(10);
       logger.debug('Analysis', `Found ${successfulPatterns.length} successful patterns`);
+      
+      // Get developer insights (think like a senior dev!)
+      const developerInsights = await devPatterns.getDeveloperInsights(task);
+      logger.debug('Analysis', `Generated ${developerInsights.length} developer insights`);
     
     // Build context from past experiences
     const historyContext = similarTasks.length > 0
@@ -55,12 +61,19 @@ export class AutonomousAI {
           `- ${p.pattern_name} (${p.pattern_type}): ${p.success_rate * 100}% success rate, used ${p.times_used} times`
         ).join('\n')}`
       : '';
+    
+    const devInsightsContext = developerInsights.length > 0
+      ? `\n\nDeveloper insights (think like a senior developer):\n${developerInsights.map(i =>
+          `- [${i.category.toUpperCase()}] ${i.insight} (Confidence: ${(i.confidence * 100).toFixed(0)}%)`
+        ).join('\n')}`
+      : '';
 
     const prompt = `You are an AUTONOMOUS and INNOVATIVE coding AI that learns from experience and thinks creatively.
 
 Task: ${task}
 ${historyContext}
 ${patternContext}
+${devInsightsContext}
 
 Analyze this task with:
 1. INNOVATION: Find creative, modern solutions beyond standard approaches
@@ -124,9 +137,9 @@ Be bold and innovative!`;
     const startTime = Date.now();
     
     try {
-      // Fetch relevant patterns
+      // Fetch relevant patterns (always works now!)
       logger.debug('CodeGen', 'Fetching code patterns');
-      const patterns = await supabaseService.getCodePatterns();
+      const patterns = await unifiedLearning.getCodePatterns();
       const relevantPatterns = patterns.filter(p => 
         taskContext.learnedPatterns.some(lp => 
           lp.toLowerCase().includes(p.pattern_type.toLowerCase())
@@ -237,16 +250,19 @@ Analyze and return ONLY a JSON object:
 
       const reflection = JSON.parse(jsonMatch[0]);
       
-      // Save learned patterns to database
+      // Save learned patterns to database (always works now!)
       logger.debug('Learning', `Saving ${reflection.newPatterns?.length || 0} new patterns`);
       for (const pattern of reflection.newPatterns || []) {
-        await supabaseService.saveCodePattern({
+        await unifiedLearning.saveCodePattern({
           ...pattern,
           times_used: 1
         });
       }
 
       logger.logTiming('Learning', 'Reflection and learning', Date.now() - startTime);
+      // Learn like a developer from this execution
+      await devPatterns.learnFromExecution(task, generatedFiles, success);
+      
       logger.success('Learning', 'Reflection completed', 
         `Innovation score: ${reflection.innovationScore}, New patterns: ${reflection.newPatterns?.length || 0}`,
         { reflection }
@@ -297,8 +313,8 @@ Return ONLY JSON:
 
       const decision = JSON.parse(jsonMatch[0]);
       
-      // Log decision for learning
-      await supabaseService.logDecision({
+      // Log decision for learning (always works now!)
+      await unifiedLearning.logDecision({
         task_id: this.taskId,
         decision_point: decisionPoint,
         options_considered: options,
@@ -364,18 +380,24 @@ Return ONLY a JSON array of detailed step descriptions:
       execution_time: executionTime
     };
 
-    await supabaseService.saveTaskHistory(taskHistory);
+    await unifiedLearning.saveTaskHistory(taskHistory);
   }
 
   /**
    * Gets autonomous insights and suggestions
    */
   async getAutonomousInsights(): Promise<string[]> {
-    const successRate = await supabaseService.getSuccessRate();
-    const recentTasks = await supabaseService.getTaskHistory(10);
-    const topPatterns = await supabaseService.getMostSuccessfulPatterns(5);
+    const successRate = await unifiedLearning.getSuccessRate();
+    const recentTasks = await unifiedLearning.getTaskHistory(10);
+    const topPatterns = await unifiedLearning.getMostSuccessfulPatterns(5);
+    const stats = unifiedLearning.getLearningStats();
 
-    const insights: string[] = [];
+    const insights: string[] = [
+      `?? Self-learning AI is ALWAYS ACTIVE`,
+      `?? Total tasks learned from: ${stats.tasksCompleted}`,
+      `? Patterns discovered: ${stats.patternsLearned}`,
+      `?? Autonomous decisions made: ${stats.decisionsMade}`
+    ];
     
     if (successRate > 0) {
       insights.push(`Current success rate: ${(successRate * 100).toFixed(1)}%`);
