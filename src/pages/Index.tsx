@@ -13,7 +13,13 @@ import { AutonomousInsights } from "@/components/AutonomousInsights";
 import { ValidationReport } from "@/components/ValidationReport";
 import { DetailedExecutionLog, ExecutionLogEntry } from "@/components/DetailedExecutionLog";
 import { CurrentStatusIndicator } from "@/components/CurrentStatusIndicator";
-import { Bot, Zap, Settings as SettingsIcon, Download } from "lucide-react";
+import { CollaborationPanel } from "@/components/CollaborationPanel";
+import { VoiceCodingPanel } from "@/components/VoiceCodingPanel";
+import { PluginManager } from "@/components/PluginManager";
+import { TemplateMarketplace } from "@/components/TemplateMarketplace";
+import { TeamManagement } from "@/components/TeamManagement";
+import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
+import { Bot, Zap, Settings as SettingsIcon, Download, Users, Mic, Puzzle, Store, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AutonomousAI } from "@/lib/autonomousAI";
@@ -53,6 +59,12 @@ const Index = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [githubBrowserOpen, setGithubBrowserOpen] = useState(false);
   const [connectedRepo, setConnectedRepo] = useState<GitHubRepo | null>(null);
+  const [collaborationOpen, setCollaborationOpen] = useState(false);
+  const [voiceCodingOpen, setVoiceCodingOpen] = useState(false);
+  const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+  const [teamManagementOpen, setTeamManagementOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
@@ -630,16 +642,67 @@ const Index = () => {
               </h1>
               
               <div className="flex items-center justify-center gap-2 flex-wrap">
-                <span className="badge-gradient shine-effect">✨ Phase 2 Complete</span>
-                <span className="badge-gradient shine-effect">🚀 Voice Coding</span>
-                <span className="badge-gradient shine-effect">🎨 Image to Code</span>
-                <span className="badge-gradient shine-effect">👥 Real-time Collab</span>
+                <span className="badge-gradient shine-effect">🎉 Phase 3 Complete</span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="badge-gradient shine-effect hover:scale-105 transition-transform"
+                  onClick={() => setVoiceCodingOpen(true)}
+                >
+                  <Mic className="h-3 w-3 mr-1" />
+                  Voice
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="badge-gradient shine-effect hover:scale-105 transition-transform"
+                  onClick={() => setCollaborationOpen(true)}
+                >
+                  <Users className="h-3 w-3 mr-1" />
+                  Collab
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="badge-gradient shine-effect hover:scale-105 transition-transform"
+                  onClick={() => setPluginManagerOpen(true)}
+                >
+                  <Puzzle className="h-3 w-3 mr-1" />
+                  Plugins
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="badge-gradient shine-effect hover:scale-105 transition-transform"
+                  onClick={() => setMarketplaceOpen(true)}
+                >
+                  <Store className="h-3 w-3 mr-1" />
+                  Templates
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="badge-gradient shine-effect hover:scale-105 transition-transform"
+                  onClick={() => setTeamManagementOpen(true)}
+                >
+                  <Users className="h-3 w-3 mr-1" />
+                  Teams
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="badge-gradient shine-effect hover:scale-105 transition-transform"
+                  onClick={() => setAnalyticsOpen(true)}
+                >
+                  <BarChart3 className="h-3 w-3 mr-1" />
+                  Analytics
+                </Button>
               </div>
             </div>
             
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl leading-relaxed">
               Truly autonomous AI that learns from experience, makes independent decisions,
-              and improves continuously. Now with voice coding, image-to-code, and real-time collaboration.
+              and improves continuously. Complete with plugins, marketplace, teams, and analytics!
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -668,6 +731,94 @@ const Index = () => {
 
       <Settings open={settingsOpen} onOpenChange={setSettingsOpen} />
       <GitHubBrowser open={githubBrowserOpen} onOpenChange={setGithubBrowserOpen} onSelectRepo={handleSelectRepo} />
+      
+      {/* Phase 2 Feature Panels */}
+      {collaborationOpen && (
+        <div className="fixed inset-y-0 right-0 w-96 bg-background/95 backdrop-blur-xl border-l border-border shadow-2xl z-50 overflow-hidden">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Real-time Collaboration
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setCollaborationOpen(false)}>✕</Button>
+          </div>
+          <CollaborationPanel />
+        </div>
+      )}
+      
+      {voiceCodingOpen && (
+        <div className="fixed inset-y-0 right-0 w-96 bg-background/95 backdrop-blur-xl border-l border-border shadow-2xl z-50 overflow-hidden">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Mic className="h-5 w-5 text-primary" />
+              Voice Coding
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setVoiceCodingOpen(false)}>✕</Button>
+          </div>
+          <VoiceCodingPanel />
+        </div>
+      )}
+      
+      {/* Phase 3 Feature Panels */}
+      {pluginManagerOpen && (
+        <div className="fixed inset-4 bg-background/98 backdrop-blur-xl border border-border shadow-2xl z-50 overflow-hidden rounded-lg">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Puzzle className="h-5 w-5 text-primary" />
+              Plugin Manager
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setPluginManagerOpen(false)}>✕</Button>
+          </div>
+          <ScrollArea className="h-[calc(100%-4rem)] p-6">
+            <PluginManager />
+          </ScrollArea>
+        </div>
+      )}
+      
+      {marketplaceOpen && (
+        <div className="fixed inset-4 bg-background/98 backdrop-blur-xl border border-border shadow-2xl z-50 overflow-hidden rounded-lg">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Store className="h-5 w-5 text-primary" />
+              Template Marketplace
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setMarketplaceOpen(false)}>✕</Button>
+          </div>
+          <ScrollArea className="h-[calc(100%-4rem)] p-6">
+            <TemplateMarketplace />
+          </ScrollArea>
+        </div>
+      )}
+      
+      {teamManagementOpen && (
+        <div className="fixed inset-4 bg-background/98 backdrop-blur-xl border border-border shadow-2xl z-50 overflow-hidden rounded-lg">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Team Management
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setTeamManagementOpen(false)}>✕</Button>
+          </div>
+          <ScrollArea className="h-[calc(100%-4rem)] p-6">
+            <TeamManagement />
+          </ScrollArea>
+        </div>
+      )}
+      
+      {analyticsOpen && (
+        <div className="fixed inset-4 bg-background/98 backdrop-blur-xl border border-border shadow-2xl z-50 overflow-hidden rounded-lg">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Analytics Dashboard
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setAnalyticsOpen(false)}>✕</Button>
+          </div>
+          <ScrollArea className="h-[calc(100%-4rem)] p-6">
+            <AnalyticsDashboard />
+          </ScrollArea>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6 space-y-6">
