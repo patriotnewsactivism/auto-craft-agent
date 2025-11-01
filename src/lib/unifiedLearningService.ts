@@ -12,14 +12,19 @@ export class UnifiedLearningService {
   private syncInProgress: boolean = false;
 
   constructor() {
-    this.useSupabase = supabaseService.isReady();
-    
-    // Start background sync if Supabase is available
-    if (this.useSupabase) {
-      this.startBackgroundSync();
+    try {
+      this.useSupabase = supabaseService.isReady();
+      
+      // Start background sync if Supabase is available
+      if (this.useSupabase) {
+        this.startBackgroundSync();
+      }
+      
+      logger.info('Learning', `Learning service initialized - ${this.useSupabase ? 'Supabase + Local' : 'Local only'}`);
+    } catch (error) {
+      logger.error('Learning', 'Failed to initialize learning service', String(error));
+      this.useSupabase = false; // Fallback to local only
     }
-    
-    logger.info('Learning', `Learning service initialized - ${this.useSupabase ? 'Supabase + Local' : 'Local only'}`);
   }
 
   /**
@@ -191,7 +196,18 @@ export class UnifiedLearningService {
    * Get learning statistics
    */
   getLearningStats() {
-    return localLearning.getLearningStats();
+    try {
+      return localLearning.getLearningStats();
+    } catch (error) {
+      logger.error('Learning', 'Failed to get learning stats', String(error));
+      // Return safe defaults
+      return {
+        tasksCompleted: 0,
+        patternsLearned: 0,
+        decisionsMade: 0,
+        successRate: 0
+      };
+    }
   }
 
   /**

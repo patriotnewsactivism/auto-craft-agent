@@ -16,7 +16,12 @@ class LoggerService {
   };
 
   constructor() {
-    this.initializeConsoleOverrides();
+    try {
+      this.initializeConsoleOverrides();
+    } catch (error) {
+      // If console override fails, just use original console
+      this.originalConsole.error('Logger initialization failed:', error);
+    }
   }
 
   /**
@@ -66,38 +71,58 @@ class LoggerService {
     details?: string,
     data?: any
   ) {
-    const entry: ExecutionLogEntry = {
-      id: `${Date.now()}-${Math.random()}`,
-      timestamp: new Date(),
-      level,
-      category,
-      message,
-      details,
-      data,
-    };
+    try {
+      const entry: ExecutionLogEntry = {
+        id: `${Date.now()}-${Math.random()}`,
+        timestamp: new Date(),
+        level,
+        category,
+        message,
+        details,
+        data,
+      };
 
-    this.logs.push(entry);
-    this.notifyListeners();
+      this.logs.push(entry);
+      
+      // Keep logs limited to prevent memory issues
+      if (this.logs.length > 1000) {
+        this.logs = this.logs.slice(-500); // Keep last 500 logs
+      }
+      
+      this.notifyListeners();
 
-    // Also log to console with app prefix
-    const prefix = `[ACW ${category}]`;
-    switch (level) {
-      case "error":
-        this.originalConsole.error(prefix, message, details || "", data || "");
-        break;
-      case "warning":
-        this.originalConsole.warn(prefix, message, details || "", data || "");
-        break;
-      case "debug":
-        this.originalConsole.debug(prefix, message, details || "", data || "");
-        break;
-      case "success":
-      case "info":
-      default:
-        this.originalConsole.log(prefix, message, details || "", data || "");
+      // Also log to console with app prefix
+      const prefix = `[ACW ${category}]`;
+      switch (level) {
+        case "error":
+          this.originalConsole.error(prefix, message, details || "", data || "");
+          break;
+        case "warning":
+          this.originalConsole.warn(prefix, message, details || "", data || "");
+          break;
+        case "debug":
+          this.originalConsole.debug(prefix, message, details || "", data || "");
+          break;
+        case "success":
+        case "info":
+        default:
+          this.originalConsole.log(prefix, message, details || "", data || "");
+      }
+
+      return entry;
+    } catch (error) {
+      // If logging fails, just use console
+      this.originalConsole.error('Logger.log failed:', error);
+      return {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        level,
+        category,
+        message,
+        details,
+        data
+      };
     }
-
-    return entry;
   }
 
   info(category: string, message: string, details?: string, data?: any) {

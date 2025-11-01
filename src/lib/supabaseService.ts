@@ -52,12 +52,18 @@ export class SupabaseService {
   private isConfigured = false;
 
   constructor() {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_key');
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_key');
 
-    if (supabaseUrl && supabaseKey) {
-      this.client = createClient(supabaseUrl, supabaseKey);
-      this.isConfigured = true;
+      if (supabaseUrl && supabaseKey) {
+        this.client = createClient(supabaseUrl, supabaseKey);
+        this.isConfigured = true;
+      }
+    } catch (error) {
+      console.error('[ACW Supabase] Failed to initialize Supabase client:', error);
+      this.client = null;
+      this.isConfigured = false;
     }
   }
 
