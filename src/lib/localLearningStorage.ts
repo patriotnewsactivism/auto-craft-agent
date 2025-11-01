@@ -4,6 +4,7 @@
  */
 
 import { TaskHistory, CodePattern, DecisionLog } from './supabaseService';
+import { safeStorage } from './safeStorage';
 
 export interface LocalPattern extends CodePattern {
   lastUsed?: string;
@@ -36,7 +37,7 @@ export class LocalLearningStorage {
       
       // Keep only last 100 tasks
       const limited = tasks.slice(0, 100);
-      localStorage.setItem(LocalLearningStorage.TASKS_KEY, JSON.stringify(limited));
+      safeStorage.setJSON(LocalLearningStorage.TASKS_KEY, limited, { useBackup: true });
       
       this.updateLearningStats('tasksCompleted', 1);
       if (task.success) {
@@ -52,10 +53,7 @@ export class LocalLearningStorage {
    */
   getTaskHistory(limit?: number): LocalTaskHistory[] {
     try {
-      const stored = localStorage.getItem(LocalLearningStorage.TASKS_KEY);
-      if (!stored) return [];
-      
-      const tasks = JSON.parse(stored) as LocalTaskHistory[];
+      const tasks = safeStorage.getJSON<LocalTaskHistory[]>(LocalLearningStorage.TASKS_KEY, [], { useBackup: true });
       return limit ? tasks.slice(0, limit) : tasks;
     } catch (error) {
       console.error('Failed to get task history:', error);
@@ -120,7 +118,7 @@ export class LocalLearningStorage {
         return scoreB - scoreA;
       });
       
-      localStorage.setItem(LocalLearningStorage.PATTERNS_KEY, JSON.stringify(sorted.slice(0, 200)));
+      safeStorage.setJSON(LocalLearningStorage.PATTERNS_KEY, sorted.slice(0, 200), { useBackup: true });
       this.updateLearningStats('patternsLearned', 1);
     } catch (error) {
       console.error('Failed to save code pattern:', error);
@@ -132,10 +130,7 @@ export class LocalLearningStorage {
    */
   getCodePatterns(patternType?: string): LocalPattern[] {
     try {
-      const stored = localStorage.getItem(LocalLearningStorage.PATTERNS_KEY);
-      if (!stored) return [];
-      
-      let patterns = JSON.parse(stored) as LocalPattern[];
+      let patterns = safeStorage.getJSON<LocalPattern[]>(LocalLearningStorage.PATTERNS_KEY, [], { useBackup: true });
       
       if (patternType) {
         patterns = patterns.filter(p => p.pattern_type === patternType);
@@ -198,7 +193,7 @@ export class LocalLearningStorage {
       });
       
       // Keep only last 500 decisions
-      localStorage.setItem(LocalLearningStorage.DECISIONS_KEY, JSON.stringify(decisions.slice(0, 500)));
+      safeStorage.setJSON(LocalLearningStorage.DECISIONS_KEY, decisions.slice(0, 500), { useBackup: true });
       this.updateLearningStats('decisionsMade', 1);
     } catch (error) {
       console.error('Failed to log decision:', error);
@@ -210,10 +205,7 @@ export class LocalLearningStorage {
    */
   getDecisions(taskId?: string): DecisionLog[] {
     try {
-      const stored = localStorage.getItem(LocalLearningStorage.DECISIONS_KEY);
-      if (!stored) return [];
-      
-      let decisions = JSON.parse(stored) as DecisionLog[];
+      let decisions = safeStorage.getJSON<DecisionLog[]>(LocalLearningStorage.DECISIONS_KEY, [], { useBackup: true });
       
       if (taskId) {
         decisions = decisions.filter(d => d.task_id === taskId);
@@ -242,7 +234,7 @@ export class LocalLearningStorage {
    */
   saveInsights(insights: string[]): void {
     try {
-      localStorage.setItem(LocalLearningStorage.INSIGHTS_KEY, JSON.stringify(insights));
+      safeStorage.setJSON(LocalLearningStorage.INSIGHTS_KEY, insights, { useBackup: true });
     } catch (error) {
       console.error('Failed to save insights:', error);
     }
@@ -253,8 +245,7 @@ export class LocalLearningStorage {
    */
   getInsights(): string[] {
     try {
-      const stored = localStorage.getItem(LocalLearningStorage.INSIGHTS_KEY);
-      return stored ? JSON.parse(stored) : [];
+      return safeStorage.getJSON<string[]>(LocalLearningStorage.INSIGHTS_KEY, [], { useBackup: true });
     } catch (error) {
       return [];
     }
@@ -265,13 +256,12 @@ export class LocalLearningStorage {
    */
   private updateLearningStats(key: string, increment: number): void {
     try {
-      const stored = localStorage.getItem(LocalLearningStorage.LEARNING_STATS_KEY);
-      const stats = stored ? JSON.parse(stored) : {};
+      const stats = safeStorage.getJSON<any>(LocalLearningStorage.LEARNING_STATS_KEY, {}, { useBackup: true });
       
       stats[key] = (stats[key] || 0) + increment;
       stats.lastUpdate = new Date().toISOString();
       
-      localStorage.setItem(LocalLearningStorage.LEARNING_STATS_KEY, JSON.stringify(stats));
+      safeStorage.setJSON(LocalLearningStorage.LEARNING_STATS_KEY, stats, { useBackup: true });
     } catch (error) {
       console.error('Failed to update learning stats:', error);
     }
@@ -287,26 +277,18 @@ export class LocalLearningStorage {
     decisionsMade: number;
     lastUpdate: string;
   } {
+    const defaultStats = {
+      tasksCompleted: 0,
+      successfulTasks: 0,
+      patternsLearned: 0,
+      decisionsMade: 0,
+      lastUpdate: new Date().toISOString()
+    };
+    
     try {
-      const stored = localStorage.getItem(LocalLearningStorage.LEARNING_STATS_KEY);
-      if (!stored) {
-        return {
-          tasksCompleted: 0,
-          successfulTasks: 0,
-          patternsLearned: 0,
-          decisionsMade: 0,
-          lastUpdate: new Date().toISOString()
-        };
-      }
-      return JSON.parse(stored);
+      return safeStorage.getJSON(LocalLearningStorage.LEARNING_STATS_KEY, defaultStats, { useBackup: true });
     } catch (error) {
-      return {
-        tasksCompleted: 0,
-        successfulTasks: 0,
-        patternsLearned: 0,
-        decisionsMade: 0,
-        lastUpdate: new Date().toISOString()
-      };
+      return defaultStats;
     }
   }
 
@@ -337,13 +319,13 @@ export class LocalLearningStorage {
   }): void {
     try {
       if (data.tasks) {
-        localStorage.setItem(LocalLearningStorage.TASKS_KEY, JSON.stringify(data.tasks));
+        safeStorage.setJSON(LocalLearningStorage.TASKS_KEY, data.tasks, { useBackup: true });
       }
       if (data.patterns) {
-        localStorage.setItem(LocalLearningStorage.PATTERNS_KEY, JSON.stringify(data.patterns));
+        safeStorage.setJSON(LocalLearningStorage.PATTERNS_KEY, data.patterns, { useBackup: true });
       }
       if (data.decisions) {
-        localStorage.setItem(LocalLearningStorage.DECISIONS_KEY, JSON.stringify(data.decisions));
+        safeStorage.setJSON(LocalLearningStorage.DECISIONS_KEY, data.decisions, { useBackup: true });
       }
     } catch (error) {
       console.error('Failed to import learning data:', error);

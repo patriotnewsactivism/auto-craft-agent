@@ -9,6 +9,7 @@ import { Settings as SettingsIcon, Eye, EyeOff, CheckCircle, Zap, Brain, Gauge, 
 import { getAllModels } from "@/lib/geminiModels";
 import { oauthService } from "@/lib/oauthService";
 import { Separator } from "@/components/ui/separator";
+import { apiKeyStorage, safeStorage } from "@/lib/safeStorage";
 
 interface SettingsProps {
   open: boolean;
@@ -36,12 +37,12 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
   const supabaseKeyFromEnv = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   useEffect(() => {
-    // Prioritize environment variables, fall back to local storage
-    const savedGoogle = googleKeyFromEnv || localStorage.getItem("google_api_key");
-    const savedModel = localStorage.getItem("gemini_model") || "gemini-2.5-flash";
-    const savedGithub = githubTokenFromEnv || localStorage.getItem("github_token");
-    const savedSupabaseUrl = supabaseUrlFromEnv || localStorage.getItem("supabase_url");
-    const savedSupabaseKey = supabaseKeyFromEnv || localStorage.getItem("supabase_key");
+    // Prioritize environment variables, fall back to persistent storage
+    const savedGoogle = googleKeyFromEnv || apiKeyStorage.getAPIKey("google_api_key");
+    const savedModel = safeStorage.getItem("gemini_model") || "gemini-2.5-flash";
+    const savedGithub = githubTokenFromEnv || apiKeyStorage.getAPIKey("github_token");
+    const savedSupabaseUrl = supabaseUrlFromEnv || apiKeyStorage.getAPIKey("supabase_url");
+    const savedSupabaseKey = supabaseKeyFromEnv || apiKeyStorage.getAPIKey("supabase_key");
     
     if (savedGoogle) setGoogleKey(savedGoogle);
     setSelectedModel(savedModel);
@@ -109,23 +110,30 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
   };
 
   const handleSave = () => {
-    // Only save to local storage if not provided by env
+    // Only save to persistent storage if not provided by env
+    let savedCount = 0;
+    
     if (googleKey && !googleKeyFromEnv) {
-      localStorage.setItem("google_api_key", googleKey);
+      if (apiKeyStorage.saveAPIKey("google_api_key", googleKey)) savedCount++;
     }
-    localStorage.setItem("gemini_model", selectedModel);
+    
+    safeStorage.setItem("gemini_model", selectedModel);
+    
     if (githubToken && !githubTokenFromEnv) {
-      localStorage.setItem("github_token", githubToken);
+      if (apiKeyStorage.saveAPIKey("github_token", githubToken)) savedCount++;
     }
+    
     if (supabaseUrl && !supabaseUrlFromEnv) {
-      localStorage.setItem("supabase_url", supabaseUrl);
+      if (apiKeyStorage.saveAPIKey("supabase_url", supabaseUrl)) savedCount++;
     }
+    
     if (supabaseKey && !supabaseKeyFromEnv) {
-      localStorage.setItem("supabase_key", supabaseKey);
+      if (apiKeyStorage.saveAPIKey("supabase_key", supabaseKey)) savedCount++;
     }
+    
     toast({
       title: "Settings Saved",
-      description: "Your configuration has been updated successfully.",
+      description: `Configuration saved successfully with ${savedCount} API key(s) securely stored.`,
     });
     onOpenChange(false);
   };

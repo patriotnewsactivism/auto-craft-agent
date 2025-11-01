@@ -52,10 +52,19 @@ export class AIService {
   }
 
   private getApiKey(): string | null {
-    // Prioritize environment variable, fall back to localStorage, then OAuth
-    return import.meta.env.VITE_GOOGLE_API_KEY || 
-           localStorage.getItem("google_api_key") ||
-           this.getOAuthToken();
+    // Prioritize environment variable, fall back to persistent storage, then OAuth
+    let apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+    
+    if (!apiKey) {
+      try {
+        // Try persistent storage first
+        apiKey = localStorage.getItem('acw_apikey_google_api_key') || localStorage.getItem("google_api_key") || null;
+      } catch (e) {
+        console.error('Failed to load API key from storage:', e);
+      }
+    }
+    
+    return apiKey || this.getOAuthToken();
   }
 
   private getOAuthToken(): string | null {
