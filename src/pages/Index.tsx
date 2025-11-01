@@ -106,6 +106,7 @@ const Index = () => {
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        // Load settings synchronously (fast)
         const savedRepo = localStorage.getItem("connected_repo");
         const savedAutoSync = localStorage.getItem("auto_sync_enabled");
         const savedInterval = localStorage.getItem("sync_interval");
@@ -120,23 +121,25 @@ const Index = () => {
         if (savedAutoSync) setAutoSyncEnabled(savedAutoSync === "true");
         if (savedInterval) setSyncInterval(Number(savedInterval));
 
-        // Load autonomous insights with timeout protection
+        // Load autonomous insights asynchronously without blocking
         if (learningEnabled) {
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Insights loading timeout")), 5000)
+          // Set default insights immediately
+          setAutonomousInsights([
+            "🧠 Self-learning AI is ALWAYS ACTIVE",
+            "📊 Ready to learn from your tasks",
+            "🎯 Patterns will be discovered as you code",
+            "⚡ Autonomous decisions will be made intelligently"
+          ]);
+          
+          // Then load real insights in background with timeout
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout")), 3000)
           );
           
-          try {
-            await Promise.race([loadInsights(), timeoutPromise]);
-          } catch (error) {
-            logger.warning("Settings", "Insights loading timed out or failed, using defaults");
-            setAutonomousInsights([
-              "🧠 Self-learning AI is ALWAYS ACTIVE",
-              "📊 Ready to learn from your tasks",
-              "🎯 Patterns will be discovered as you code",
-              "⚡ Autonomous decisions will be made intelligently"
-            ]);
-          }
+          Promise.race([loadInsights(), timeoutPromise])
+            .catch(error => {
+              logger.warning("Settings", "Insights loading timed out or failed, using defaults", String(error));
+            });
         }
       } catch (error) {
         logger.logError("Settings", error, "Failed to initialize app settings");

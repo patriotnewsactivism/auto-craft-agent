@@ -277,5 +277,25 @@ export class SupabaseService {
   }
 }
 
-// Export singleton instance
-export const supabaseService = new SupabaseService();
+// Export lazy singleton instance to avoid blocking module loading
+let _supabaseService: SupabaseService | null = null;
+
+function getSupabaseService(): SupabaseService {
+  if (!_supabaseService) {
+    try {
+      _supabaseService = new SupabaseService();
+    } catch (error) {
+      console.error('[ACW Supabase] Failed to initialize:', error);
+      _supabaseService = new SupabaseService(); // Try again, constructor handles errors
+    }
+  }
+  return _supabaseService;
+}
+
+export const supabaseService = new Proxy({} as SupabaseService, {
+  get(target, prop) {
+    const service = getSupabaseService();
+    const value = (service as any)[prop];
+    return typeof value === 'function' ? value.bind(service) : value;
+  }
+});
