@@ -1,5 +1,7 @@
 import { AIService } from './aiService';
-import { supabaseService, TaskHistory, CodePattern } from './supabaseService';
+import { TaskHistory, CodePattern } from './supabaseService';
+import { unifiedLearning } from './unifiedLearningService';
+import { logger } from './logger';
 
 /**
  * Continuous Learning System
@@ -41,13 +43,20 @@ export class ContinuousLearningSystem {
   }
 
   /**
-   * Initializes continuous learning cycle
+   * Initializes continuous learning cycle - MORE AGGRESSIVE NOW!
    */
   private async initializeLearningCycle(): Promise<void> {
-    // Run learning analysis periodically
+    // Run learning analysis MORE frequently for faster improvement
     setInterval(() => {
       this.performLearningCycle();
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, 2 * 60 * 1000); // Every 2 minutes (more aggressive)
+    
+    // Initial learning cycle on startup
+    setTimeout(() => {
+      this.performLearningCycle();
+    }, 10000); // After 10 seconds
+    
+    logger.success('Learning', 'Continuous learning cycle initialized - ALWAYS ACTIVE!');
   }
 
   /**
@@ -57,9 +66,9 @@ export class ContinuousLearningSystem {
     this.learningCycle++;
     
     try {
-      // Get recent tasks
-      const recentTasks = await supabaseService.getTaskHistory(20);
-      if (recentTasks.length < 5) return; // Need enough data to learn
+      // Get recent tasks (always works now!)
+      const recentTasks = await unifiedLearning.getTaskHistory(20);
+      if (recentTasks.length < 2) return; // Need at least 2 tasks to learn
 
       // Analyze patterns
       const insights = await this.analyzeTaskPatterns(recentTasks);
@@ -75,9 +84,10 @@ export class ContinuousLearningSystem {
       this.knowledgeCache.set('lastLearning', new Date());
       this.knowledgeCache.set('insights', insights);
       
-      console.log(`Learning cycle ${this.learningCycle} completed. Found ${insights.length} insights.`);
+      logger.success('Learning', `Learning cycle ${this.learningCycle} completed`, 
+        `Found ${insights.length} insights. AI is getting smarter!`);
     } catch (error) {
-      console.error('Learning cycle error:', error);
+      logger.logError('Learning', error, 'Learning cycle encountered an error');
     }
   }
 
@@ -127,9 +137,11 @@ Return ONLY a JSON array:
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (!jsonMatch) return [];
       
-      return JSON.parse(jsonMatch[0]);
+      const insights = JSON.parse(jsonMatch[0]);
+      logger.debug('Learning', `Extracted ${insights.length} learning insights from analysis`);
+      return insights;
     } catch (error) {
-      console.error('Pattern analysis error:', error);
+      logger.logError('Learning', error, 'Pattern analysis failed');
       return [];
     }
   }
@@ -174,9 +186,9 @@ Return ONLY a JSON array:
    * Gets current knowledge state for display
    */
   async getKnowledgeState(): Promise<KnowledgeState> {
-    const tasks = await supabaseService.getTaskHistory(100);
-    const patterns = await supabaseService.getMostSuccessfulPatterns(10);
-    const successRate = await supabaseService.getSuccessRate();
+    const tasks = await unifiedLearning.getTaskHistory(100);
+    const patterns = await unifiedLearning.getMostSuccessfulPatterns(10);
+    const successRate = await unifiedLearning.getSuccessRate();
 
     const specializations = this.identifySpecializations(tasks);
     const expertiseLevel = this.calculateExpertiseLevel(tasks.length, successRate, patterns.length);
@@ -239,11 +251,11 @@ Return ONLY a JSON array:
     reasoning: string;
   }> {
     // Find similar past tasks
-    const similarTasks = await supabaseService.getSimilarTasks(taskDescription, 10);
+    const similarTasks = await unifiedLearning.getSimilarTasks(taskDescription, 10);
     const successfulTasks = similarTasks.filter(t => t.success);
 
     // Get relevant patterns
-    const allPatterns = await supabaseService.getCodePatterns();
+    const allPatterns = await unifiedLearning.getCodePatterns();
     const relevantPatterns = this.findRelevantPatterns(taskDescription, allPatterns);
 
     // Calculate confidence based on similarity and success rate
@@ -333,25 +345,38 @@ Provide a brief, confident explanation of why this approach will succeed.`;
    */
   async selfOptimize(): Promise<string[]> {
     const state = await this.getKnowledgeState();
-    const insights: string[] = [];
+    const stats = unifiedLearning.getLearningStats();
+    const insights: string[] = [
+      `?? Learning Stats: ${stats.tasksCompleted} tasks, ${stats.patternsLearned} patterns, ${stats.decisionsMade} decisions`
+    ];
 
     // Analyze success rate trend
     if (state.successRate < 0.7) {
-      insights.push('Success rate below optimal. Focusing on more thorough validation.');
+      insights.push('?? Actively improving - learning from errors to boost success rate');
     } else if (state.successRate > 0.9) {
-      insights.push('High success rate maintained. Ready for more complex challenges.');
+      insights.push('? High success rate maintained - ready for enterprise challenges!');
+    } else {
+      insights.push(`?? Success rate: ${(state.successRate * 100).toFixed(1)}% - continuously optimizing`);
     }
 
     // Analyze pattern usage
     if (state.topPatterns.length < 5) {
-      insights.push('Limited pattern library. Will extract more patterns from successful tasks.');
+      insights.push('?? Building pattern library - will be smarter with each task');
+    } else {
+      insights.push(`?? ${state.topPatterns.length} proven patterns learned - coding like a senior dev!`);
     }
 
     // Analyze expertise level
     if (state.expertiseLevel === 'expert') {
-      insights.push('Expert level achieved. Can autonomously handle enterprise-level projects.');
+      insights.push('?? Expert level achieved - autonomous enterprise-level development ready!');
     } else {
-      insights.push(`Currently at ${state.expertiseLevel} level. Continuously improving.`);
+      insights.push(`?? Expertise level: ${state.expertiseLevel.toUpperCase()} - leveling up continuously!`);
+    }
+
+    // Add learning velocity
+    if (stats.tasksCompleted > 10) {
+      const avgPatternsPerTask = stats.patternsLearned / stats.tasksCompleted;
+      insights.push(`?? Learning velocity: ${avgPatternsPerTask.toFixed(1)} patterns per task`);
     }
 
     return insights;
@@ -370,10 +395,13 @@ Provide a brief, confident explanation of why this approach will succeed.`;
       expertiseLevel: string;
     };
   }> {
-    const tasks = await supabaseService.getTaskHistory(1000);
-    const patterns = await supabaseService.getCodePatterns();
+    const tasks = await unifiedLearning.getTaskHistory(1000);
+    const patterns = await unifiedLearning.getCodePatterns();
     const state = await this.getKnowledgeState();
     const insights = this.knowledgeCache.get('insights') || [];
+    
+    logger.info('Learning', 'Exporting knowledge', 
+      `${tasks.length} tasks, ${patterns.length} patterns, ${insights.length} insights`);
 
     return {
       patterns,
@@ -396,13 +424,16 @@ Provide a brief, confident explanation of why this approach will succeed.`;
   }): Promise<void> {
     // Import patterns
     for (const pattern of knowledge.patterns) {
-      await supabaseService.saveCodePattern(pattern);
+      await unifiedLearning.saveCodePattern(pattern);
     }
 
     // Import tasks (for learning, not execution)
     for (const task of knowledge.tasks) {
-      await supabaseService.saveTaskHistory(task);
+      await unifiedLearning.saveTaskHistory(task);
     }
+    
+    logger.success('Learning', 'Knowledge imported successfully', 
+      `Imported ${knowledge.patterns.length} patterns and ${knowledge.tasks.length} tasks`);
   }
 
   /**
@@ -410,22 +441,29 @@ Provide a brief, confident explanation of why this approach will succeed.`;
    */
   async getLearningRecommendations(): Promise<string[]> {
     const state = await this.getKnowledgeState();
-    const recommendations: string[] = [];
+    const stats = unifiedLearning.getLearningStats();
+    const recommendations: string[] = [
+      '?? Self-learning AI is ALWAYS ACTIVE - I learn from every task!'
+    ];
 
     if (state.totalTasks < 10) {
-      recommendations.push('Try diverse tasks to build broad expertise');
-      recommendations.push('Focus on completing successful tasks to build confidence');
+      recommendations.push('?? Early learning phase - try diverse tasks to accelerate my growth');
+      recommendations.push('?? Each task makes me significantly smarter');
     } else if (state.totalTasks < 50) {
-      recommendations.push('Challenge me with more complex applications');
-      recommendations.push('I\'m ready for full-stack projects');
+      recommendations.push('?? Ready for complex full-stack applications');
+      recommendations.push('?? Challenge me with enterprise-level features');
     } else {
-      recommendations.push('I can handle enterprise-level applications autonomously');
-      recommendations.push('Try innovative or experimental project ideas');
+      recommendations.push('? Expert level - I can autonomously architect entire applications');
+      recommendations.push('?? Try experimental or innovative project ideas');
     }
 
     if (state.successRate < 0.8) {
-      recommendations.push('Provide more context for better results');
+      recommendations.push('?? Provide detailed context for optimal results');
+    } else {
+      recommendations.push(`? ${(state.successRate * 100).toFixed(0)}% success rate - performing like a senior developer`);
     }
+    
+    recommendations.push(`?? Learning progress: ${stats.tasksCompleted} tasks, ${stats.patternsLearned} patterns mastered`);
 
     return recommendations;
   }
