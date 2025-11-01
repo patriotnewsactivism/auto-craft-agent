@@ -576,33 +576,55 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <div className="border-b border-border bg-gradient-to-b from-background to-secondary/30">
-        <div className="container mx-auto px-4 py-12">
-          <div className="flex flex-col items-center text-center space-y-4 max-w-4xl mx-auto">
-            <div className="relative">
-              <div className="absolute inset-0 blur-3xl bg-primary/20 rounded-full" />
-              <Bot className="h-16 w-16 text-primary relative" />
+    <div className="min-h-screen">
+      {/* Hero Section with Glassmorphism */}
+      <div className="glass-card border-0 mb-8 mx-4 mt-4">
+        <div className="container mx-auto px-6 py-8">
+          <div className="flex flex-col items-center text-center space-y-6 max-w-5xl mx-auto fade-in">
+            <div className="relative pulse-glow">
+              <div className="absolute inset-0 blur-3xl bg-gradient-to-r from-primary/30 to-accent/30 rounded-full" />
+              <div className="relative bg-gradient-to-br from-primary/20 to-accent/20 p-4 rounded-2xl backdrop-blur-xl border border-primary/30">
+                <Bot className="h-14 w-14 text-primary animate-pulse" />
+              </div>
             </div>
             
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
-              <span className="gradient-text">Autonomous</span> Code Wizard
-            </h1>
+            <div className="space-y-3">
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+                <span className="gradient-text">Autonomous</span>{' '}
+                <span className="text-foreground">Code Wizard</span>
+              </h1>
+              
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <span className="badge-gradient shine-effect">✨ Phase 2 Complete</span>
+                <span className="badge-gradient shine-effect">🚀 Voice Coding</span>
+                <span className="badge-gradient shine-effect">🎨 Image to Code</span>
+                <span className="badge-gradient shine-effect">👥 Real-time Collab</span>
+              </div>
+            </div>
             
-            <p className="text-lg text-muted-foreground max-w-2xl">
+            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl leading-relaxed">
               Truly autonomous AI that learns from experience, makes independent decisions,
-              and improves continuously without constant guidance.
+              and improves continuously. Now with voice coding, image-to-code, and real-time collaboration.
             </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <Button 
+                className="animated-gradient hover:scale-105 transition-transform glow-border" 
+                size="lg"
+                onClick={() => setSettingsOpen(true)}
+              >
                 <SettingsIcon className="h-4 w-4 mr-2" />
                 Configure API Keys
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExport} disabled={fileTree.length === 0}>
+              <Button 
+                variant="outline" 
+                size="lg" 
+                className="hover-lift glass-card border-primary/30"
+                onClick={handleExport} 
+                disabled={fileTree.length === 0}
+              >
                 <Download className="h-4 w-4 mr-2" />
-                Export ZIP
+                Export Project
               </Button>
             </div>
           </div>
@@ -613,78 +635,99 @@ const Index = () => {
       <GitHubBrowser open={githubBrowserOpen} onOpenChange={setGithubBrowserOpen} onSelectRepo={handleSelectRepo} />
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* GitHub Sync Status */}
-        <SyncStatus
-          connectedRepo={connectedRepo}
-          onSelectRepo={() => setGithubBrowserOpen(true)}
-          onSyncToGitHub={handleSyncToGitHub}
-          onSyncFromGitHub={() => handleSyncFromGitHub()}
-          lastSyncTime={lastSyncTime}
-          isSyncing={isSyncing}
-          autoSyncEnabled={autoSyncEnabled}
-          onAutoSyncChange={setAutoSyncEnabled}
-          syncInterval={syncInterval}
-          onSyncIntervalChange={setSyncInterval}
-        />
+      <div className="container mx-auto px-4 py-6 space-y-6">
+        {/* GitHub Sync Status & Insights */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 fade-in">
+          <div className="tech-card hover-lift p-6">
+            <SyncStatus
+              connectedRepo={connectedRepo}
+              onSelectRepo={() => setGithubBrowserOpen(true)}
+              onSyncToGitHub={handleSyncToGitHub}
+              onSyncFromGitHub={() => handleSyncFromGitHub()}
+              lastSyncTime={lastSyncTime}
+              isSyncing={isSyncing}
+              autoSyncEnabled={autoSyncEnabled}
+              onAutoSyncChange={setAutoSyncEnabled}
+              syncInterval={syncInterval}
+              onSyncIntervalChange={setSyncInterval}
+            />
+          </div>
 
-        {/* Autonomous Insights */}
-        <AutonomousInsights
-          insights={autonomousInsights}
-          innovationScore={innovationScore}
-          learningEnabled={learningEnabled}
-          patternsLearned={learnedPatterns}
-        />
+          <div className="tech-card hover-lift p-6">
+            <AutonomousInsights
+              insights={autonomousInsights}
+              innovationScore={innovationScore}
+              learningEnabled={learningEnabled}
+              patternsLearned={learnedPatterns}
+            />
+          </div>
+        </div>
 
         {/* Task Input */}
-        <TaskInput onSubmit={executeWithAutonomousAI} isExecuting={isExecuting} />
+        <div className="glass-card hover-lift p-6 fade-in">
+          <TaskInput onSubmit={executeWithAutonomousAI} isExecuting={isExecuting} />
+        </div>
 
         {/* Current Status Indicator */}
-        <CurrentStatusIndicator
-          currentTask={currentStatus.task}
-          progress={currentStatus.progress}
-          status={currentStatus.status}
-          details={currentStatus.details}
-        />
+        <div className="fade-in">
+          <CurrentStatusIndicator
+            currentTask={currentStatus.task}
+            progress={currentStatus.progress}
+            status={currentStatus.status}
+            details={currentStatus.details}
+          />
+        </div>
 
         {/* Metrics */}
         {(isExecuting || steps.length > 0) && (
-          <ExecutionMetrics {...metrics} />
+          <div className="tech-card hover-lift p-6 fade-in">
+            <ExecutionMetrics {...metrics} />
+          </div>
         )}
 
         {/* Detailed Execution Log */}
-        <DetailedExecutionLog logs={executionLogs} isExecuting={isExecuting} />
+        <div className="glass-card p-6 fade-in">
+          <DetailedExecutionLog logs={executionLogs} isExecuting={isExecuting} />
+        </div>
 
         {/* Agent Thinking */}
         {(isExecuting || thinkingSteps.length > 0) && (
-          <AgentThinking steps={thinkingSteps} isThinking={isExecuting} />
+          <div className="glass-card hover-lift p-6 pulse-glow fade-in">
+            <AgentThinking steps={thinkingSteps} isThinking={isExecuting} />
+          </div>
         )}
 
         {/* Validation Report */}
         {(codeValidation || architectureValidation || securityAudit) && (
-          <ValidationReport
-            codeValidation={codeValidation}
-            architectureValidation={architectureValidation}
-            securityAudit={securityAudit}
-          />
+          <div className="tech-card hover-lift p-6 fade-in">
+            <ValidationReport
+              codeValidation={codeValidation}
+              architectureValidation={architectureValidation}
+              securityAudit={securityAudit}
+            />
+          </div>
         )}
 
         {/* Main Execution View */}
         {steps.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 fade-in">
             {/* Left Column - Steps & Terminal */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="space-y-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-primary" />
-                  Autonomous Execution Pipeline
+              <div className="tech-card p-6 space-y-4">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Zap className="h-6 w-6 text-primary animate-pulse" />
+                  <span className="gradient-text">Autonomous Execution Pipeline</span>
                 </h2>
                 {steps.map((step, index) => (
-                  <ExecutionStep key={step.id} step={step} index={index} />
+                  <div key={step.id} className="glass-card p-4 hover-lift">
+                    <ExecutionStep step={step} index={index} />
+                  </div>
                 ))}
               </div>
 
-              <TerminalOutput lines={terminalLines} />
+              <div className="glass-card p-6">
+                <TerminalOutput lines={terminalLines} />
+              </div>
             </div>
 
             {/* Right Column - Files & Code */}
