@@ -28,6 +28,7 @@ import { supabaseService } from "@/lib/supabaseService";
 import { GitHubService, GitHubRepo } from "@/lib/githubService";
 import { ExportService } from "@/lib/exportService";
 import { logger } from "@/lib/logger";
+import { safeStorage, apiKeyStorage } from "@/lib/safeStorage";
 
 interface FileNode {
   name: string;
@@ -118,17 +119,13 @@ const Index = () => {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Load settings synchronously (fast)
-        const savedRepo = localStorage.getItem("connected_repo");
-        const savedAutoSync = localStorage.getItem("auto_sync_enabled");
-        const savedInterval = localStorage.getItem("sync_interval");
+        // Load settings synchronously (fast) using safe storage
+        const savedRepo = safeStorage.getJSON<any>("connected_repo", null, { useBackup: true });
+        const savedAutoSync = safeStorage.getItem("auto_sync_enabled");
+        const savedInterval = safeStorage.getItem("sync_interval");
 
         if (savedRepo) {
-          try {
-            setConnectedRepo(JSON.parse(savedRepo));
-          } catch (e) {
-            logger.error("Settings", "Failed to parse saved repo", String(e));
-          }
+          setConnectedRepo(savedRepo);
         }
         if (savedAutoSync) setAutoSyncEnabled(savedAutoSync === "true");
         if (savedInterval) setSyncInterval(Number(savedInterval));
@@ -160,11 +157,11 @@ const Index = () => {
   }, [learningEnabled]);
 
   useEffect(() => {
-    localStorage.setItem("auto_sync_enabled", String(autoSyncEnabled));
+    safeStorage.setItem("auto_sync_enabled", String(autoSyncEnabled));
   }, [autoSyncEnabled]);
 
   useEffect(() => {
-    localStorage.setItem("sync_interval", String(syncInterval));
+    safeStorage.setItem("sync_interval", String(syncInterval));
   }, [syncInterval]);
 
   const loadInsights = async () => {
@@ -201,7 +198,7 @@ const Index = () => {
   };
 
   const executeWithAutonomousAI = async (task: string) => {
-    const apiKey = import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem("google_api_key");
+    const apiKey = import.meta.env.VITE_GOOGLE_API_KEY || apiKeyStorage.getAPIKey("google_api_key");
     if (!apiKey) {
       logger.error("Execution", "API key not configured", "User needs to add Google AI API key in settings");
       toast({
@@ -431,7 +428,7 @@ const Index = () => {
   // GitHub sync methods (keeping existing functionality)
   const handleSelectRepo = async (repo: GitHubRepo) => {
     setConnectedRepo(repo);
-    localStorage.setItem("connected_repo", JSON.stringify(repo));
+    safeStorage.setJSON("connected_repo", repo, { useBackup: true });
     toast({
       title: "Repository Connected",
       description: `Connected to ${repo.full_name}`,
@@ -443,7 +440,7 @@ const Index = () => {
     const targetRepo = repo || connectedRepo;
     if (!targetRepo) return;
 
-    const token = import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem("github_token");
+    const token = import.meta.env.VITE_GITHUB_TOKEN || apiKeyStorage.getAPIKey("github_token");
     if (!token) {
       toast({
         title: "GitHub Token Required",
@@ -511,7 +508,7 @@ const Index = () => {
       return;
     }
 
-    const token = import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem("github_token");
+    const token = import.meta.env.VITE_GITHUB_TOKEN || apiKeyStorage.getAPIKey("github_token");
     if (!token) {
       toast({
         title: "GitHub Token Required",

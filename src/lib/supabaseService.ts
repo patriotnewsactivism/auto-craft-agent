@@ -53,8 +53,21 @@ export class SupabaseService {
 
   constructor() {
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_key');
+      // Use direct localStorage access to avoid async in constructor
+      let supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      let supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      // Fallback to persistent storage
+      if (!supabaseUrl || !supabaseKey) {
+        try {
+          const persistentUrl = localStorage.getItem('acw_apikey_supabase_url');
+          const persistentKey = localStorage.getItem('acw_apikey_supabase_key');
+          supabaseUrl = supabaseUrl || persistentUrl || localStorage.getItem('supabase_url');
+          supabaseKey = supabaseKey || persistentKey || localStorage.getItem('supabase_key');
+        } catch (e) {
+          console.error('[ACW Supabase] Failed to load API keys from storage:', e);
+        }
+      }
 
       if (supabaseUrl && supabaseKey) {
         this.client = createClient(supabaseUrl, supabaseKey);

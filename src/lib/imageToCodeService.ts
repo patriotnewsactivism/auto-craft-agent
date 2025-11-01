@@ -70,7 +70,10 @@ export class ImageToCodeService {
   private initializeAI(): void {
     // Try to get API key from environment or localStorage
     if (typeof window !== 'undefined') {
-      this.apiKey = localStorage.getItem('gemini_api_key') || 
+      // Try persistent storage first
+      const persistentKey = localStorage.getItem('acw_apikey_google_api_key');
+      this.apiKey = persistentKey || 
+                    localStorage.getItem('gemini_api_key') || 
                     import.meta.env.VITE_GOOGLE_API_KEY;
     } else {
       this.apiKey = import.meta.env.VITE_GOOGLE_API_KEY;

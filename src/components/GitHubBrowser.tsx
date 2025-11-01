@@ -21,7 +21,9 @@ export const GitHubBrowser = ({ open, onOpenChange, onSelectRepo }: GitHubBrowse
   const { toast } = useToast();
 
   const getGithubToken = (): string | null => {
-    return import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem("github_token");
+    // Try persistent storage first, then fallback to legacy
+    const persistentToken = localStorage.getItem('acw_apikey_github_token');
+    return import.meta.env.VITE_GITHUB_TOKEN || persistentToken || localStorage.getItem("github_token");
   };
 
   const loadRepositories = useCallback(async () => {

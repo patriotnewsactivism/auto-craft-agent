@@ -260,7 +260,8 @@ export class DeploymentService {
   }
 
   private getGitHubToken(): string | null {
-    return import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem('github_token');
+    const persistentToken = localStorage.getItem('acw_apikey_github_token');
+    return import.meta.env.VITE_GITHUB_TOKEN || persistentToken || localStorage.getItem('github_token');
   }
 
   // Mock deployment functions (in production, these would make real API calls)

@@ -267,8 +267,10 @@ class ResellerService {
    */
   private async saveToDatabase(table: string, data: any): Promise<void> {
     // Check if Supabase is configured
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_key');
+    // Import apiKeyStorage dynamically to avoid circular dependencies
+    const { apiKeyStorage } = await import('./safeStorage');
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || apiKeyStorage.getAPIKey('supabase_url');
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || apiKeyStorage.getAPIKey('supabase_key');
 
     if (!supabaseUrl || !supabaseKey) {
       // Fallback to localStorage for demo
@@ -277,7 +279,14 @@ class ResellerService {
       
       // Also store in index
       const indexKey = `${table}_index`;
-      const index = JSON.parse(localStorage.getItem(indexKey) || '[]');
+      let index: string[] = [];
+      try {
+        const stored = localStorage.getItem(indexKey);
+        index = stored ? JSON.parse(stored) : [];
+      } catch (e) {
+        console.error('Failed to parse index:', e);
+        index = [];
+      }
       index.push(data.id);
       localStorage.setItem(indexKey, JSON.stringify(index));
       return;
@@ -289,20 +298,35 @@ class ResellerService {
   }
 
   private async fetchFromDatabase(table: string, filters: any): Promise<any> {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_key');
+    // Import apiKeyStorage dynamically to avoid circular dependencies
+    const { apiKeyStorage } = await import('./safeStorage');
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || apiKeyStorage.getAPIKey('supabase_url');
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || apiKeyStorage.getAPIKey('supabase_key');
 
     if (!supabaseUrl || !supabaseKey) {
       // Fallback to localStorage
       const indexKey = `${table}_index`;
-      const index = JSON.parse(localStorage.getItem(indexKey) || '[]');
+      let index: string[] = [];
+      try {
+        const stored = localStorage.getItem(indexKey);
+        index = stored ? JSON.parse(stored) : [];
+      } catch (e) {
+        console.error('Failed to parse index:', e);
+        index = [];
+      }
       
       const results = [];
       for (const id of index) {
         const key = `${table}_${id}`;
         const item = localStorage.getItem(key);
         if (item) {
-          const parsed = JSON.parse(item);
+          let parsed;
+          try {
+            parsed = JSON.parse(item);
+          } catch (e) {
+            console.error('Failed to parse item:', e);
+            continue;
+          }
           // Check if matches filters
           let matches = true;
           for (const [key, value] of Object.entries(filters)) {
@@ -325,8 +349,10 @@ class ResellerService {
   }
 
   private async updateDatabase(table: string, id: string, updates: any): Promise<void> {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_key');
+    // Import apiKeyStorage dynamically to avoid circular dependencies
+    const { apiKeyStorage } = await import('./safeStorage');
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || apiKeyStorage.getAPIKey('supabase_url');
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || apiKeyStorage.getAPIKey('supabase_key');
 
     if (!supabaseUrl || !supabaseKey) {
       // Fallback to localStorage

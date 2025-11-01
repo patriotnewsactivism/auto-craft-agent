@@ -3,6 +3,20 @@
  * Handles CPU-intensive operations without blocking the main thread
  */
 
+// Safe API key retrieval function for worker context
+function getAPIKey(name: string): string | null {
+  try {
+    // Try persistent storage first
+    const persistentKey = localStorage.getItem(`acw_apikey_${name}`);
+    if (persistentKey) return persistentKey;
+    
+    // Fallback to legacy key
+    return localStorage.getItem(name);
+  } catch {
+    return null;
+  }
+}
+
 interface WorkerTask {
   id: string;
   type: string;
@@ -139,7 +153,7 @@ async function handleCodeGeneration(task: WorkerTask) {
     body: JSON.stringify({
       model: model || 'gemini-2.5-flash',
       prompt: `You are an expert autonomous coding agent. Generate production-ready code based on this task:\n\n${prompt}${context ? `\n\nContext:\n${context}` : ""}\n\nProvide complete, working code with proper error handling, types, and best practices.`,
-      apiKey: localStorage.getItem('google_api_key')
+      apiKey: getAPIKey('google_api_key')
     })
   });
   
@@ -188,7 +202,7 @@ async function handleAnalysis(task: WorkerTask) {
 }
 
 Task: ${taskDescription}`,
-      apiKey: localStorage.getItem('google_api_key')
+      apiKey: getAPIKey('google_api_key')
     })
   });
   

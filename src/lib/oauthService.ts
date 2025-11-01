@@ -3,6 +3,8 @@
  * Handles OAuth flows for GitHub, Google (for Gemini), and Supabase
  */
 
+import { apiKeyStorage, safeStorage } from './safeStorage';
+
 export interface OAuthConfig {
   clientId: string;
   redirectUri: string;
@@ -216,15 +218,15 @@ class OAuthService {
    * Store OAuth token securely
    */
   private storeToken(provider: 'github' | 'google' | 'supabase', token: OAuthToken): void {
-    localStorage.setItem(`${this.STORAGE_PREFIX}${provider}`, JSON.stringify(token));
+    safeStorage.setJSON(`${this.STORAGE_PREFIX}${provider}`, token, { useBackup: true });
     
-    // Also store in legacy format for backwards compatibility
+    // Also store in persistent API key storage for backwards compatibility
     if (provider === 'github') {
-      localStorage.setItem('github_token', token.accessToken);
+      apiKeyStorage.saveAPIKey('github_token', token.accessToken);
     } else if (provider === 'google') {
-      localStorage.setItem('google_api_key', token.accessToken);
+      apiKeyStorage.saveAPIKey('google_api_key', token.accessToken);
     } else if (provider === 'supabase') {
-      localStorage.setItem('supabase_key', token.accessToken);
+      apiKeyStorage.saveAPIKey('supabase_key', token.accessToken);
     }
   }
 
@@ -232,14 +234,7 @@ class OAuthService {
    * Get stored OAuth token
    */
   getToken(provider: 'github' | 'google' | 'supabase'): OAuthToken | null {
-    const stored = localStorage.getItem(`${this.STORAGE_PREFIX}${provider}`);
-    if (!stored) return null;
-
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return null;
-    }
+    return safeStorage.getJSON<OAuthToken>(`${this.STORAGE_PREFIX}${provider}`, null, { useBackup: true });
   }
 
   /**
@@ -261,16 +256,16 @@ class OAuthService {
    * Logout from a provider
    */
   logout(provider: 'github' | 'google' | 'supabase'): void {
-    localStorage.removeItem(`${this.STORAGE_PREFIX}${provider}`);
+    safeStorage.removeItem(`${this.STORAGE_PREFIX}${provider}`);
     
-    // Also remove legacy format
+    // Also remove from API key storage
     if (provider === 'github') {
-      localStorage.removeItem('github_token');
+      apiKeyStorage.removeAPIKey('github_token');
     } else if (provider === 'google') {
-      localStorage.removeItem('google_api_key');
+      apiKeyStorage.removeAPIKey('google_api_key');
     } else if (provider === 'supabase') {
-      localStorage.removeItem('supabase_key');
-      localStorage.removeItem('supabase_url');
+      apiKeyStorage.removeAPIKey('supabase_key');
+      apiKeyStorage.removeAPIKey('supabase_url');
     }
   }
 
