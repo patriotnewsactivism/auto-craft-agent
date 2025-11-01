@@ -362,5 +362,25 @@ export class LocalLearningStorage {
   }
 }
 
-// Export singleton instance
-export const localLearning = new LocalLearningStorage();
+// Export lazy singleton instance to avoid blocking module loading
+let _localLearning: LocalLearningStorage | null = null;
+
+function getLocalLearning(): LocalLearningStorage {
+  if (!_localLearning) {
+    try {
+      _localLearning = new LocalLearningStorage();
+    } catch (error) {
+      console.error('[ACW LocalStorage] Failed to initialize:', error);
+      _localLearning = new LocalLearningStorage(); // Try again
+    }
+  }
+  return _localLearning;
+}
+
+export const localLearning = new Proxy({} as LocalLearningStorage, {
+  get(target, prop) {
+    const storage = getLocalLearning();
+    const value = (storage as any)[prop];
+    return typeof value === 'function' ? value.bind(storage) : value;
+  }
+});

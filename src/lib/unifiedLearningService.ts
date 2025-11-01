@@ -280,5 +280,21 @@ export class UnifiedLearningService {
   }
 }
 
-// Export singleton instance
-export const unifiedLearning = new UnifiedLearningService();
+// Export lazy singleton instance to avoid blocking module loading
+let _unifiedLearning: UnifiedLearningService | null = null;
+
+export const unifiedLearning = new Proxy({} as UnifiedLearningService, {
+  get(target, prop) {
+    if (!_unifiedLearning) {
+      try {
+        _unifiedLearning = new UnifiedLearningService();
+      } catch (error) {
+        console.error('[ACW Learning] Failed to initialize learning service:', error);
+        // Return safe fallback methods
+        return () => Promise.resolve([]);
+      }
+    }
+    const value = (_unifiedLearning as any)[prop];
+    return typeof value === 'function' ? value.bind(_unifiedLearning) : value;
+  }
+});
