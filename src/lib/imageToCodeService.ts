@@ -147,7 +147,10 @@ export class ImageToCodeService {
       logger.debug('ImageToCode', 'Analyzing image');
 
       const model = this.genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash' 
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          maxOutputTokens: 4096  // Prevent token limit errors
+        }
       });
 
       const imageData = await this.prepareImageData(image);
@@ -196,7 +199,10 @@ Return your analysis in a structured format.`;
     }
 
     const model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-pro' // Use Pro for better code generation
+      model: 'gemini-2.5-pro', // Use Pro for better code generation
+      generationConfig: {
+        maxOutputTokens: 4096  // Prevent token limit errors
+      }
     });
 
     const imageData = await this.prepareImageData(image);

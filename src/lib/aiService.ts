@@ -195,7 +195,7 @@ export class AIService {
             temperature: 0.9,
             topP: 0.95,
             topK: 40,
-            maxOutputTokens: 8192,
+            maxOutputTokens: 4096, // Reduced from 8192 to prevent token limit errors
           }),
           signal: controller.signal
         });
@@ -263,30 +263,14 @@ export class AIService {
   async generateCode(prompt: string, context?: string): Promise<string> {
     logger.info('AIService', 'Generating code', `Prompt length: ${prompt.length} chars`);
     
-    // Enhanced prompt for better AI intelligence
-    const enhancedPrompt = `You are an elite autonomous coding agent with deep expertise in modern web development, software architecture, and best practices.
+    // Simplified prompt to reduce token usage and prevent limit errors
+    const enhancedPrompt = `You are an expert coding assistant.
 
 TASK: ${prompt}
 
-${context ? `CONTEXT:\n${context}\n\n` : ""}
+${context ? `CONTEXT:\n${context.substring(0, 500)}\n\n` : ""}
 
-REQUIREMENTS:
-- Generate production-ready, enterprise-grade code
-- Include comprehensive error handling and edge cases
-- Use TypeScript with proper type safety
-- Follow SOLID principles and clean code practices
-- Add helpful comments for complex logic
-- Ensure code is performant and optimized
-- Make it mobile-responsive if it's UI code
-- Include proper validation and security considerations
-
-OUTPUT FORMAT:
-- Provide complete, runnable code
-- Use modern ES6+ syntax
-- Structure code logically with clear separation of concerns
-- Add brief explanation of key design decisions
-
-Generate the code now:`;
+Provide clean, production-ready code with TypeScript. Include error handling and helpful comments. Be concise but complete.`;
     
     return this.makeApiRequest(enhancedPrompt, false); // Don't cache code generation
   }
