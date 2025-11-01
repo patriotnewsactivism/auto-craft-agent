@@ -1,5 +1,6 @@
 import { getModel, getDefaultModel, type GeminiModel } from './geminiModels';
 import { logger } from './logger';
+import { parseJsonOrThrow } from './safeJsonParser';
 
 interface CacheEntry {
   prompt: string;
@@ -308,14 +309,14 @@ Return the JSON now:`;
 
     const text = await this.makeApiRequest(enhancedPrompt, true); // Cache analysis
     
-    // Extract JSON from potential markdown code blocks
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      logger.error('AIService', 'Failed to parse AI response', 'No JSON found in response', { response: text.substring(0, 200) });
-      throw new Error("Failed to parse AI response - no valid JSON found");
-    }
-    
-    const result = JSON.parse(jsonMatch[0]);
+    // Use safe JSON parser to handle truncated or malformed responses
+    const result = parseJsonOrThrow<{
+      steps: string[];
+      files: string[];
+      complexity: "low" | "medium" | "high";
+      estimatedTime?: number;
+      dependencies?: string[];
+    }>(text, 'Task analysis');
     logger.success('AIService', 'Task analysis complete', `Complexity: ${result.complexity}, Steps: ${result.steps.length}, Est. time: ${result.estimatedTime || 'N/A'}min`);
     return result;
   }

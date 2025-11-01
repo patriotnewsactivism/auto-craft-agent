@@ -3,6 +3,7 @@ import { TaskHistory, CodePattern, DecisionLog } from './supabaseService';
 import { unifiedLearning } from './unifiedLearningService';
 import { devPatterns } from './developerPatterns';
 import { logger } from './logger';
+import { parseJsonOrThrow, parseJsonWithFallback } from './safeJsonParser';
 
 export interface AutonomousTask {
   description: string;
@@ -96,13 +97,14 @@ Be bold and innovative!`;
       const response = await this.aiService.generateCode(prompt);
       logger.logApiCall('AI Analysis', 'success', 'Received analysis response');
       
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        logger.error('Analysis', 'Failed to parse AI response', 'No JSON found in response', { response: response.substring(0, 200) });
-        throw new Error('Failed to parse AI response - no JSON found');
-      }
-      
-      const analysis = JSON.parse(jsonMatch[0]);
+      // Use safe JSON parser to handle truncated responses
+      const analysis = parseJsonOrThrow<{
+        complexity: string;
+        steps: string[];
+        files: string[];
+        innovationOpportunities?: string[];
+        learnedPatterns?: string[];
+      }>(response, 'Task analysis');
       const result = {
         description: task,
         complexity: analysis.complexity,
@@ -237,18 +239,13 @@ Analyze and return ONLY a JSON object:
       const response = await this.aiService.generateCode(prompt);
       logger.logApiCall('AI Reflection', 'success', 'Reflection completed');
       
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        logger.warning('Learning', 'Failed to parse reflection response, using defaults');
-        return {
-          strengths: [],
-          improvements: [],
-          newPatterns: [],
-          innovationScore: 0.5
-        };
-      }
-
-      const reflection = JSON.parse(jsonMatch[0]);
+      // Use safe JSON parser with fallback for reflection
+      const reflection = parseJsonWithFallback<ReflectionResult>(response, {
+        strengths: [],
+        improvements: [],
+        newPatterns: [],
+        innovationScore: 0.5
+      });
       
       // Save learned patterns to database (always works now!)
       logger.debug('Learning', `Saving ${reflection.newPatterns?.length || 0} new patterns`);
@@ -305,13 +302,12 @@ Return ONLY JSON:
 }`;
 
       const response = await this.aiService.generateCode(prompt);
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        logger.warning('Decision', 'Failed to parse decision response, using default');
-        return { chosen: options[0], reasoning: 'Default choice' };
-      }
-
-      const decision = JSON.parse(jsonMatch[0]);
+      
+      // Use safe JSON parser with fallback for decisions
+      const decision = parseJsonWithFallback<{ chosen: string; reasoning: string }>(
+        response,
+        { chosen: options[0], reasoning: 'Default choice' }
+      );
       
       // Log decision for learning (always works now!)
       await unifiedLearning.logDecision({
@@ -353,10 +349,9 @@ Return ONLY a JSON array of detailed step descriptions:
 ["step 1 with details", "step 2", ...]`;
 
     const response = await this.aiService.generateCode(prompt);
-    const jsonMatch = response.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return task.steps;
-
-    return JSON.parse(jsonMatch[0]);
+    
+    // Use safe JSON parser with fallback for execution plan
+    return parseJsonWithFallback<string[]>(response, task.steps);
   }
 
   /**

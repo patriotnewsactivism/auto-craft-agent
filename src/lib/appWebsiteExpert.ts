@@ -1,5 +1,6 @@
 import { AIService } from './aiService';
 import { supabaseService, CodePattern } from './supabaseService';
+import { parseJsonOrThrow } from './safeJsonParser';
 
 /**
  * Expert-level autonomous system specifically for building apps and websites
@@ -172,10 +173,7 @@ Return ONLY a JSON object:
 }`;
 
     const response = await this.aiService.generateCode(prompt);
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Failed to analyze project');
-    
-    return JSON.parse(jsonMatch[0]);
+    return parseJsonOrThrow<AppWebsiteProject>(response, 'Project analysis');
   }
 
   /**
@@ -230,10 +228,7 @@ Return ONLY a JSON object:
 }`;
 
     const response = await this.aiService.generateCode(prompt);
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Failed to create plan');
-    
-    return JSON.parse(jsonMatch[0]);
+    return parseJsonOrThrow<GenerationPlan>(response, 'Generation plan');
   }
 
   /**
@@ -267,21 +262,21 @@ ${patternContext}
 
 Generate PRODUCTION-READY, EXPERT-LEVEL code with:
 
-✅ **Best Practices**:
+? **Best Practices**:
 - SOLID principles
 - DRY (Don't Repeat Yourself)
 - Clean Code principles
 - Proper separation of concerns
 - Industry-standard naming conventions
 
-✅ **Modern Patterns**:
+? **Modern Patterns**:
 - Latest React patterns (hooks, composition)
 - TypeScript best practices
 - Functional programming where appropriate
 - Performance optimization
 - Error boundaries and error handling
 
-✅ **Code Quality**:
+? **Code Quality**:
 - Full TypeScript typing
 - Comprehensive error handling
 - Input validation
@@ -290,17 +285,17 @@ Generate PRODUCTION-READY, EXPERT-LEVEL code with:
 - Responsive design
 - Loading and error states
 
-✅ **Documentation**:
+? **Documentation**:
 - Clear comments for complex logic
 - JSDoc for public APIs
 - Self-documenting code structure
 
-✅ **Testing Ready**:
+? **Testing Ready**:
 - Testable architecture
 - Clear dependencies
 - Mockable external services
 
-✅ **Performance**:
+? **Performance**:
 - Optimized re-renders
 - Lazy loading where appropriate
 - Memoization for expensive computations
@@ -436,7 +431,7 @@ This application was built with expert-level autonomous decisions including:
 - Performance optimizations
 - Security implementations
 
-Built with ❤️ by Autonomous AI Expert System
+Built with ?? by Autonomous AI Expert System
 `;
   }
 

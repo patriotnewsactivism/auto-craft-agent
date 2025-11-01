@@ -1,4 +1,5 @@
 import { AIService } from './aiService';
+import { parseJsonWithFallback } from './safeJsonParser';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -63,12 +64,10 @@ Return ONLY JSON:
 
     try {
       const response = await this.aiService.generateCode(prompt);
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return this.getDefaultValidation(false);
-      }
-
-      return JSON.parse(jsonMatch[0]);
+      return parseJsonWithFallback<ValidationResult>(
+        response,
+        this.getDefaultValidation(false)
+      );
     } catch (error) {
       console.error('Validation error:', error);
       return this.getDefaultValidation(false);
@@ -110,12 +109,10 @@ Return ONLY JSON:
 
     try {
       const response = await this.aiService.generateCode(prompt);
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return this.getDefaultTestResult();
-      }
-
-      return JSON.parse(jsonMatch[0]);
+      return parseJsonWithFallback<TestResult>(
+        response,
+        this.getDefaultTestResult()
+      );
     } catch (error) {
       console.error('Test generation error:', error);
       return this.getDefaultTestResult();
@@ -200,12 +197,10 @@ Return ONLY JSON:
 
     try {
       const response = await this.aiService.generateCode(prompt);
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return this.getDefaultValidation(true);
-      }
-
-      return JSON.parse(jsonMatch[0]);
+      return parseJsonWithFallback<ValidationResult>(
+        response,
+        this.getDefaultValidation(true)
+      );
     } catch (error) {
       console.error('Architecture validation error:', error);
       return this.getDefaultValidation(true);
@@ -248,12 +243,10 @@ Return ONLY JSON:
 
     try {
       const response = await this.aiService.generateCode(prompt);
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return this.getDefaultValidation(true);
-      }
-
-      return JSON.parse(jsonMatch[0]);
+      return parseJsonWithFallback<ValidationResult>(
+        response,
+        this.getDefaultValidation(true)
+      );
     } catch (error) {
       console.error('Security audit error:', error);
       return this.getDefaultValidation(true);
