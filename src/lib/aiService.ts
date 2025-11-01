@@ -166,48 +166,72 @@ export class AIService {
     try {
       logger.debug('AIService', `Making API request to /api/generate`, `Model: ${this.model}`);
       
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: this.model,
-          prompt: prompt,
-          apiKey: apiKey,
-          // Enhanced generation parameters for better quality
-          temperature: 0.7,
-          topP: 0.95,
-          topK: 40,
-          maxOutputTokens: 8192,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Enhanced error messages from the API
-        const errorMessage = data.error || `HTTP error! status: ${response.status}`;
-        const details = data.details ? `\n${data.details}` : '';
-        const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
-        const fullError = `API error: ${errorMessage}${details}${hint}`;
-        
-        logger.error('AIService', `API request failed (${response.status})`, fullError, { 
-          status: response.status, 
-          data 
-        });
-        throw new Error(fullError);
-      }
-
-      const duration = Date.now() - startTime;
-      logger.success('AIService', 'API request successful', `Received ${data.text?.length || 0} characters in ${duration}ms`);
+      // Create an AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
       
-      // Cache the response
-      if (useCache) {
-        this.cacheResponse(prompt, data.text);
-      }
+      try {
+        const response = await fetch("/api/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: this.model,
+            prompt: prompt,
+            apiKey: apiKey,
+            // Enhanced generation parameters - higher temperature to reduce recitation
+            temperature: 0.9,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 8192,
+          }),
+          signal: controller.signal
+        });
 
-      return data.text;
+        clearTimeout(timeoutId);
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          // Enhanced error messages from the API
+          const errorMessage = data.error || `HTTP error! status: ${response.status}`;
+          const details = data.details ? `\n${data.details}` : '';
+          const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
+          const fullError = `API error: ${errorMessage}${details}${hint}`;
+          
+          logger.error('AIService', `API request failed (${response.status})`, fullError, { 
+            status: response.status, 
+            data 
+          });
+          throw new Error(fullError);
+        }
+
+        const duration = Date.now() - startTime;
+        const retryInfo = data.retried ? ` (retried ${data.retryCount} time(s))` : '';
+        logger.success('AIService', 'API request successful', `Received ${data.text?.length || 0} characters in ${duration}ms${retryInfo}`);
+        
+        // Cache the response
+        if (useCache) {
+          this.cacheResponse(prompt, data.text);
+        }
+
+        return data.text;
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        // Handle timeout specifically
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          const timeoutError = new Error('Request timed out after 60 seconds. The API is taking too long to respond. Try:\n' +
+            '1. Breaking down your request into smaller parts\n' +
+            '2. Simplifying your prompt\n' +
+            '3. Using a faster model like gemini-2.5-flash-lite');
+          logger.error('AIService', 'Request timeout', 'API request exceeded 60 second timeout');
+          throw timeoutError;
+        }
+        
+        throw fetchError;
+      }
     } catch (error) {
       // Handle network errors
       if (error instanceof Error) {
