@@ -13,10 +13,12 @@ export class UnifiedLearningService {
 
   constructor() {
     try {
+      // Quick check without blocking
       this.useSupabase = supabaseService.isReady();
       
-      // Start background sync if Supabase is available
+      // Start background sync if Supabase is available (non-blocking)
       if (this.useSupabase) {
+        // Start sync immediately without blocking constructor
         this.startBackgroundSync();
       }
       

@@ -131,22 +131,20 @@ const Index = () => {
             "⚡ Autonomous decisions will be made intelligently"
           ]);
           
-          // Then load real insights in background with timeout
-          const timeoutPromise = new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error("Timeout")), 3000)
-          );
-          
-          Promise.race([loadInsights(), timeoutPromise])
-            .catch(error => {
-              logger.warning("Settings", "Insights loading timed out or failed, using defaults", String(error));
-            });
+          // Load real insights in background WITHOUT blocking - fire and forget
+          loadInsights().catch(error => {
+            logger.warning("Settings", "Insights loading failed, using defaults", String(error));
+          });
         }
       } catch (error) {
         logger.logError("Settings", error, "Failed to initialize app settings");
       }
     };
 
-    initializeApp();
+    // Don't await - let it run in background
+    initializeApp().catch(err => {
+      console.error("Failed to initialize app:", err);
+    });
   }, [learningEnabled]);
 
   useEffect(() => {
@@ -160,19 +158,24 @@ const Index = () => {
   const loadInsights = async () => {
     try {
       logger.info("Insights", "Loading autonomous insights");
-      const ai = new AutonomousAI();
-      const insights = await ai.getAutonomousInsights();
+      
+      // Add a timeout to the entire insights loading process
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("Insights loading timeout")), 2000)
+      );
+      
+      const loadPromise = (async () => {
+        const ai = new AutonomousAI();
+        const insights = await ai.getAutonomousInsights();
+        return insights;
+      })();
+      
+      const insights = await Promise.race([loadPromise, timeoutPromise]);
       setAutonomousInsights(insights);
       logger.success("Insights", `Loaded ${insights.length} insights`);
     } catch (error) {
       logger.logError("Insights", error, "Failed to load autonomous insights");
-      // Set default insights on error to prevent blocking
-      setAutonomousInsights([
-        "🧠 Self-learning AI is ALWAYS ACTIVE",
-        "📊 Ready to learn from your tasks",
-        "🎯 Patterns will be discovered as you code",
-        "⚡ Autonomous decisions will be made intelligently"
-      ]);
+      // Keep default insights on error - already set before this call
     }
   };
 

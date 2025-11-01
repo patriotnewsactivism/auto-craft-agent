@@ -85,37 +85,61 @@ export class SupabaseService {
   async getTaskHistory(limit: number = 50): Promise<TaskHistory[]> {
     if (!this.isReady()) return [];
     
-    const { data, error } = await this.client!
-      .from('task_history')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    
-    if (error) {
-      console.error('Error fetching task history:', error);
+    try {
+      // Add 5 second timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Supabase query timeout')), 5000)
+      );
+      
+      const queryPromise = this.client!
+        .from('task_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
+      if (error) {
+        console.error('Error fetching task history:', error);
+        return [];
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Task history query failed or timed out:', error);
       return [];
     }
-    
-    return data || [];
   }
 
   async getSimilarTasks(description: string, limit: number = 5): Promise<TaskHistory[]> {
     if (!this.isReady()) return [];
     
-    // Use text similarity search (requires pg_trgm extension in Supabase)
-    const { data, error } = await this.client!
-      .from('task_history')
-      .select('*')
-      .textSearch('task_description', description)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    
-    if (error) {
-      console.error('Error finding similar tasks:', error);
+    try {
+      // Add 5 second timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Supabase query timeout')), 5000)
+      );
+      
+      // Use text similarity search (requires pg_trgm extension in Supabase)
+      const queryPromise = this.client!
+        .from('task_history')
+        .select('*')
+        .textSearch('task_description', description)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
+      if (error) {
+        console.error('Error finding similar tasks:', error);
+        return [];
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Similar tasks query failed or timed out:', error);
       return [];
     }
-    
-    return data || [];
   }
 
   // Code Pattern Management
@@ -248,32 +272,56 @@ export class SupabaseService {
   async getSuccessRate(): Promise<number> {
     if (!this.isReady()) return 0;
     
-    const { data, error } = await this.client!
-      .from('task_history')
-      .select('success');
-    
-    if (error || !data || data.length === 0) return 0;
-    
-    const successful = data.filter(t => t.success).length;
-    return successful / data.length;
+    try {
+      // Add 5 second timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Supabase query timeout')), 5000)
+      );
+      
+      const queryPromise = this.client!
+        .from('task_history')
+        .select('success');
+      
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
+      if (error || !data || data.length === 0) return 0;
+      
+      const successful = data.filter(t => t.success).length;
+      return successful / data.length;
+    } catch (error) {
+      console.error('Success rate query failed or timed out:', error);
+      return 0;
+    }
   }
 
   async getMostSuccessfulPatterns(limit: number = 10): Promise<CodePattern[]> {
     if (!this.isReady()) return [];
     
-    const { data, error } = await this.client!
-      .from('code_patterns')
-      .select('*')
-      .gt('times_used', 2) // Only patterns used more than twice
-      .order('success_rate', { ascending: false })
-      .limit(limit);
-    
-    if (error) {
-      console.error('Error fetching successful patterns:', error);
+    try {
+      // Add 5 second timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Supabase query timeout')), 5000)
+      );
+      
+      const queryPromise = this.client!
+        .from('code_patterns')
+        .select('*')
+        .gt('times_used', 2) // Only patterns used more than twice
+        .order('success_rate', { ascending: false })
+        .limit(limit);
+      
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      
+      if (error) {
+        console.error('Error fetching successful patterns:', error);
+        return [];
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Successful patterns query failed or timed out:', error);
       return [];
     }
-    
-    return data || [];
   }
 }
 
