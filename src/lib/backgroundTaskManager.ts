@@ -1,277 +1,302 @@
 /**
- * BACKGROUND TASK MANAGER
- * 
- * Manages tasks that continue running even when:
- * - Window loses focus
- * - User closes the tab
- * - User switches to another app
- * 
- * Uses IndexedDB for persistence and Web Workers for background execution
+ * Background Task Manager with Service Worker
+ * Allows tasks to continue running even when window is closed/minimized
  */
-
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
 export interface BackgroundTask {
   id: string;
-  type: 'code_generation' | 'analysis' | 'validation';
-  description: string;
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'error';
+  type: 'code_generation' | 'analysis' | 'github_sync' | 'learning';
+  status: 'queued' | 'running' | 'completed' | 'failed';
   progress: number;
-  startTime: number;
-  lastUpdateTime: number;
-  estimatedTimeRemaining?: number; // in seconds
-  totalEstimatedTime?: number; // in seconds
-  elapsedTime?: number; // in seconds
-  
-  // Task data
-  input: any;
-  output?: any;
+  data: any;
+  result?: any;
   error?: string;
-  
-  // Progress tracking
-  currentStep?: string;
-  totalSteps?: number;
-  completedSteps?: number;
-  
-  // Sub-tasks
-  subTasks?: Array<{
-    name: string;
-    progress: number;
-    status: 'pending' | 'running' | 'completed' | 'error';
-  }>;
-}
-
-export interface ProjectState {
-  id: string;
-  name: string;
-  description: string;
   createdAt: number;
-  lastModified: number;
-  status: 'active' | 'paused' | 'completed';
-  
-  // Current execution state
-  currentTask?: BackgroundTask;
-  taskHistory: BackgroundTask[];
-  
-  // Generated files
-  fileTree: any[];
-  
-  // Logs and metrics
-  logs: any[];
-  metrics: {
-    filesGenerated: number;
-    stepsCompleted: number;
-    totalExecutionTime: number;
-    errors: number;
-  };
+  startedAt?: number;
+  completedAt?: number;
 }
 
-interface BackgroundDB extends DBSchema {
-  tasks: {
-    key: string;
-    value: BackgroundTask;
-    indexes: { 'by-status': string; 'by-time': number };
-  };
-  projects: {
-    key: string;
-    value: ProjectState;
-    indexes: { 'by-modified': number; 'by-status': string };
-  };
-}
-
-export class BackgroundTaskManager {
-  private db: IDBPDatabase<BackgroundDB> | null = null;
+class BackgroundTaskManager {
+  private tasks: Map<string, BackgroundTask> = new Map();
+  private worker: Worker | null = null;
+  private serviceWorkerRegistration: ServiceWorkerRegistration | null = null;
   private listeners: Map<string, Set<(task: BackgroundTask) => void>> = new Map();
-  private projectListeners: Set<(projects: ProjectState[]) => void> = new Set();
-  private checkInterval: number | null = null;
 
-  async initialize() {
-    this.db = await openDB<BackgroundDB>('autonomous-code-wizard', 1, {
-      upgrade(db) {
-        // Tasks store
-        if (!db.objectStoreNames.contains('tasks')) {
-          const taskStore = db.createObjectStore('tasks', { keyPath: 'id' });
-          taskStore.createIndex('by-status', 'status');
-          taskStore.createIndex('by-time', 'lastUpdateTime');
-        }
-        
-        // Projects store
-        if (!db.objectStoreNames.contains('projects')) {
-          const projectStore = db.createObjectStore('projects', { keyPath: 'id' });
-          projectStore.createIndex('by-modified', 'lastModified');
-          projectStore.createIndex('by-status', 'status');
-        }
-      },
-    });
-
-    // Start background processing
-    this.startBackgroundProcessing();
+  constructor() {
+    this.init();
   }
 
-  /**
-   * Create a new background task
-   */
-  async createTask(
-    type: BackgroundTask['type'],
-    description: string,
-    input: any,
-    estimatedTime?: number
-  ): Promise<BackgroundTask> {
-    if (!this.db) await this.initialize();
+  private async init() {
+    // Initialize IndexedDB for persistent task storage
+    await this.initDB();
 
-    const task: BackgroundTask = {
-      id: `task-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      type,
-      description,
-      status: 'pending',
-      progress: 0,
-      startTime: Date.now(),
-      lastUpdateTime: Date.now(),
-      input,
-      totalEstimatedTime: estimatedTime,
-      estimatedTimeRemaining: estimatedTime,
-      elapsedTime: 0,
-      subTasks: []
-    };
+    // Load existing tasks
+    await this.loadTasks();
 
-    await this.db!.put('tasks', task);
-    this.notifyListeners(task.id, task);
-    
-    return task;
-  }
+    // Register Service Worker for background execution
+    if ('serviceWorker' in navigator) {
+      try {
+        this.serviceWorkerRegistration = await navigator.serviceWorker.register('/sw.js');
+        console.log('? Service Worker registered for background tasks');
 
-  /**
-   * Update task progress and estimate remaining time
-   */
-  async updateTask(
-    taskId: string,
-    updates: Partial<BackgroundTask>
-  ): Promise<void> {
-    if (!this.db) await this.initialize();
-
-    const task = await this.db!.get('tasks', taskId);
-    if (!task) return;
-
-    const now = Date.now();
-    const elapsedTime = Math.floor((now - task.startTime) / 1000);
-    
-    // Calculate estimated time remaining based on progress
-    let estimatedTimeRemaining = task.estimatedTimeRemaining;
-    if (updates.progress !== undefined && updates.progress > 0) {
-      const progressRate = updates.progress / elapsedTime;
-      const remainingProgress = 100 - updates.progress;
-      estimatedTimeRemaining = Math.floor(remainingProgress / progressRate);
+        // Listen for messages from Service Worker
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data.type === 'task_update') {
+            this.handleTaskUpdate(event.data.task);
+          }
+        });
+      } catch (error) {
+        console.warn('Service Worker registration failed:', error);
+      }
     }
 
-    const updatedTask = {
-      ...task,
-      ...updates,
-      lastUpdateTime: now,
-      elapsedTime,
-      estimatedTimeRemaining
+    // Create Web Worker for heavy computation
+    try {
+      this.worker = new Worker(new URL('../workers/task.worker.ts', import.meta.url), {
+        type: 'module'
+      });
+
+      this.worker.onmessage = (event) => {
+        if (event.data.type === 'task_complete') {
+          this.handleTaskComplete(event.data.taskId, event.data.result);
+        } else if (event.data.type === 'task_error') {
+          this.handleTaskError(event.data.taskId, event.data.error);
+        } else if (event.data.type === 'task_progress') {
+          this.handleTaskProgress(event.data.taskId, event.data.progress);
+        }
+      };
+    } catch (error) {
+      console.warn('Web Worker creation failed:', error);
+    }
+
+    // Process queued tasks on startup
+    this.processQueue();
+  }
+
+  private async initDB(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('BackgroundTasks', 1);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains('tasks')) {
+          db.createObjectStore('tasks', { keyPath: 'id' });
+        }
+      };
+    });
+  }
+
+  private async loadTasks(): Promise<void> {
+    const db = await this.openDB();
+    const transaction = db.transaction(['tasks'], 'readonly');
+    const store = transaction.objectStore('tasks');
+    const request = store.getAll();
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        const tasks = request.result as BackgroundTask[];
+        tasks.forEach(task => {
+          this.tasks.set(task.id, task);
+        });
+        console.log(`?? Loaded ${tasks.length} persisted tasks`);
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  private async openDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('BackgroundTasks', 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  private async saveTask(task: BackgroundTask): Promise<void> {
+    const db = await this.openDB();
+    const transaction = db.transaction(['tasks'], 'readwrite');
+    const store = transaction.objectStore('tasks');
+    store.put(task);
+  }
+
+  /**
+   * Queue a new background task
+   */
+  async queueTask(
+    type: BackgroundTask['type'],
+    data: any
+  ): Promise<string> {
+    const task: BackgroundTask = {
+      id: crypto.randomUUID(),
+      type,
+      status: 'queued',
+      progress: 0,
+      data,
+      createdAt: Date.now()
     };
 
-    await this.db!.put('tasks', updatedTask);
-    this.notifyListeners(taskId, updatedTask);
+    this.tasks.set(task.id, task);
+    await this.saveTask(task);
+
+    console.log(`?? Task queued: ${task.id} (${type})`);
+
+    // Start processing immediately
+    this.processQueue();
+
+    return task.id;
   }
 
   /**
-   * Get task by ID
+   * Process queued tasks
    */
-  async getTask(taskId: string): Promise<BackgroundTask | undefined> {
-    if (!this.db) await this.initialize();
-    return await this.db!.get('tasks', taskId);
+  private async processQueue() {
+    const queued = Array.from(this.tasks.values()).filter(
+      t => t.status === 'queued'
+    );
+
+    if (queued.length === 0) return;
+
+    console.log(`?? Processing ${queued.length} queued tasks`);
+
+    // Process tasks in parallel (max 3 at a time)
+    const MAX_CONCURRENT = 3;
+    const running = Array.from(this.tasks.values()).filter(
+      t => t.status === 'running'
+    ).length;
+
+    const available = MAX_CONCURRENT - running;
+    const toProcess = queued.slice(0, available);
+
+    for (const task of toProcess) {
+      this.executeTask(task.id);
+    }
   }
 
   /**
-   * Get all tasks
+   * Execute a task
    */
-  async getAllTasks(): Promise<BackgroundTask[]> {
-    if (!this.db) await this.initialize();
-    return await this.db!.getAll('tasks');
+  private async executeTask(taskId: string) {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+
+    task.status = 'running';
+    task.startedAt = Date.now();
+    await this.saveTask(task);
+    this.notifyListeners(taskId, task);
+
+    console.log(`?? Executing task: ${taskId} (${task.type})`);
+
+    try {
+      // If we have a Web Worker, use it
+      if (this.worker) {
+        this.worker.postMessage({
+          type: 'execute_task',
+          task
+        });
+      } else {
+        // Fallback to direct execution
+        await this.executeTaskDirect(task);
+      }
+    } catch (error) {
+      this.handleTaskError(taskId, error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
-   * Get tasks by status
+   * Direct task execution (fallback)
    */
-  async getTasksByStatus(status: BackgroundTask['status']): Promise<BackgroundTask[]> {
-    if (!this.db) await this.initialize();
-    return await this.db!.getAllFromIndex('tasks', 'by-status', status);
+  private async executeTaskDirect(task: BackgroundTask) {
+    // Import services dynamically to avoid circular dependencies
+    const { AIService } = await import('./aiService');
+    const { GitHubService } = await import('./githubService');
+
+    switch (task.type) {
+      case 'code_generation':
+        const aiService = new AIService(task.data.model);
+        const code = await aiService.generateCode(task.data.prompt, task.data.context);
+        this.handleTaskComplete(task.id, { code });
+        break;
+
+      case 'analysis':
+        const analysisService = new AIService();
+        const analysis = await analysisService.analyzeTask(task.data.task);
+        this.handleTaskComplete(task.id, analysis);
+        break;
+
+      case 'github_sync':
+        const githubService = new GitHubService(task.data.token);
+        const result = await githubService.syncToGitHub(
+          task.data.owner,
+          task.data.repo,
+          task.data.files,
+          task.data.commitMessage
+        );
+        this.handleTaskComplete(task.id, result);
+        break;
+
+      default:
+        throw new Error(`Unknown task type: ${task.type}`);
+    }
   }
 
-  /**
-   * Delete task
-   */
-  async deleteTask(taskId: string): Promise<void> {
-    if (!this.db) await this.initialize();
-    await this.db!.delete('tasks', taskId);
+  private handleTaskUpdate(task: BackgroundTask) {
+    this.tasks.set(task.id, task);
+    this.saveTask(task);
+    this.notifyListeners(task.id, task);
   }
 
-  /**
-   * Create or update a project
-   */
-  async saveProject(project: Partial<ProjectState> & { id: string }): Promise<ProjectState> {
-    if (!this.db) await this.initialize();
+  private handleTaskComplete(taskId: string, result: any) {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
 
-    const existing = await this.db!.get('projects', project.id);
-    const now = Date.now();
+    task.status = 'completed';
+    task.progress = 100;
+    task.result = result;
+    task.completedAt = Date.now();
 
-    const savedProject: ProjectState = {
-      name: project.name || existing?.name || 'Untitled Project',
-      description: project.description || existing?.description || '',
-      createdAt: existing?.createdAt || now,
-      lastModified: now,
-      status: project.status || existing?.status || 'active',
-      currentTask: project.currentTask || existing?.currentTask,
-      taskHistory: project.taskHistory || existing?.taskHistory || [],
-      fileTree: project.fileTree || existing?.fileTree || [],
-      logs: project.logs || existing?.logs || [],
-      metrics: project.metrics || existing?.metrics || {
-        filesGenerated: 0,
-        stepsCompleted: 0,
-        totalExecutionTime: 0,
-        errors: 0
-      },
-      ...project,
-      id: project.id,
-    };
+    this.saveTask(task);
+    this.notifyListeners(taskId, task);
 
-    await this.db!.put('projects', savedProject);
-    this.notifyProjectListeners();
-    
-    return savedProject;
+    console.log(`? Task completed: ${taskId}`);
+
+    // Process next queued task
+    this.processQueue();
   }
 
-  /**
-   * Get project by ID
-   */
-  async getProject(projectId: string): Promise<ProjectState | undefined> {
-    if (!this.db) await this.initialize();
-    return await this.db!.get('projects', projectId);
+  private handleTaskError(taskId: string, error: string) {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+
+    task.status = 'failed';
+    task.error = error;
+    task.completedAt = Date.now();
+
+    this.saveTask(task);
+    this.notifyListeners(taskId, task);
+
+    console.error(`? Task failed: ${taskId}`, error);
+
+    // Process next queued task
+    this.processQueue();
   }
 
-  /**
-   * Get all projects, sorted by last modified
-   */
-  async getAllProjects(): Promise<ProjectState[]> {
-    if (!this.db) await this.initialize();
-    const projects = await this.db!.getAll('projects');
-    return projects.sort((a, b) => b.lastModified - a.lastModified);
-  }
+  private handleTaskProgress(taskId: string, progress: number) {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
 
-  /**
-   * Delete project
-   */
-  async deleteProject(projectId: string): Promise<void> {
-    if (!this.db) await this.initialize();
-    await this.db!.delete('projects', projectId);
-    this.notifyProjectListeners();
+    task.progress = progress;
+    this.saveTask(task);
+    this.notifyListeners(taskId, task);
   }
 
   /**
    * Subscribe to task updates
    */
-  onTaskUpdate(taskId: string, callback: (task: BackgroundTask) => void): () => void {
+  subscribe(taskId: string, callback: (task: BackgroundTask) => void): () => void {
     if (!this.listeners.has(taskId)) {
       this.listeners.set(taskId, new Set());
     }
@@ -282,26 +307,10 @@ export class BackgroundTaskManager {
       const listeners = this.listeners.get(taskId);
       if (listeners) {
         listeners.delete(callback);
-        if (listeners.size === 0) {
-          this.listeners.delete(taskId);
-        }
       }
     };
   }
 
-  /**
-   * Subscribe to project list updates
-   */
-  onProjectsUpdate(callback: (projects: ProjectState[]) => void): () => void {
-    this.projectListeners.add(callback);
-    return () => {
-      this.projectListeners.delete(callback);
-    };
-  }
-
-  /**
-   * Notify listeners of task updates
-   */
   private notifyListeners(taskId: string, task: BackgroundTask) {
     const listeners = this.listeners.get(taskId);
     if (listeners) {
@@ -310,102 +319,75 @@ export class BackgroundTaskManager {
   }
 
   /**
-   * Notify project list listeners
+   * Get task by ID
    */
-  private async notifyProjectListeners() {
-    const projects = await this.getAllProjects();
-    this.projectListeners.forEach(callback => callback(projects));
+  getTask(taskId: string): BackgroundTask | undefined {
+    return this.tasks.get(taskId);
   }
 
   /**
-   * Start background processing loop
-   * Continues running even when window loses focus
+   * Get all tasks
    */
-  private startBackgroundProcessing() {
-    if (this.checkInterval) return;
-
-    // Check every 5 seconds
-    this.checkInterval = window.setInterval(async () => {
-      try {
-        const runningTasks = await this.getTasksByStatus('running');
-        
-        for (const task of runningTasks) {
-          // Update elapsed time
-          const elapsedTime = Math.floor((Date.now() - task.startTime) / 1000);
-          
-          // Recalculate estimated time remaining
-          let estimatedTimeRemaining = task.estimatedTimeRemaining;
-          if (task.progress > 0) {
-            const progressRate = task.progress / elapsedTime;
-            const remainingProgress = 100 - task.progress;
-            estimatedTimeRemaining = Math.floor(remainingProgress / progressRate);
-          }
-
-          await this.updateTask(task.id, {
-            elapsedTime,
-            estimatedTimeRemaining
-          });
-        }
-      } catch (error) {
-        console.error('Background processing error:', error);
-      }
-    }, 5000);
-
-    // Also use Page Visibility API to detect when page is hidden
-    document.addEventListener('visibilitychange', async () => {
-      if (document.hidden) {
-        console.log('🌙 App in background - tasks continue running...');
-      } else {
-        console.log('👋 Welcome back! Syncing task status...');
-        // Refresh all running tasks when user returns
-        const runningTasks = await this.getTasksByStatus('running');
-        runningTasks.forEach(task => this.notifyListeners(task.id, task));
-      }
-    });
+  getAllTasks(): BackgroundTask[] {
+    return Array.from(this.tasks.values()).sort(
+      (a, b) => b.createdAt - a.createdAt
+    );
   }
 
   /**
-   * Stop background processing
+   * Get active tasks
    */
-  stopBackgroundProcessing() {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
+  getActiveTasks(): BackgroundTask[] {
+    return Array.from(this.tasks.values()).filter(
+      t => t.status === 'queued' || t.status === 'running'
+    );
+  }
+
+  /**
+   * Cancel a task
+   */
+  async cancelTask(taskId: string) {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+
+    if (task.status === 'running') {
+      // Send cancel message to worker
+      if (this.worker) {
+        this.worker.postMessage({
+          type: 'cancel_task',
+          taskId
+        });
+      }
     }
+
+    task.status = 'failed';
+    task.error = 'Cancelled by user';
+    task.completedAt = Date.now();
+
+    await this.saveTask(task);
+    this.notifyListeners(taskId, task);
   }
 
   /**
-   * Estimate task duration based on complexity and history
+   * Clear completed tasks
    */
-  estimateTaskDuration(
-    taskType: string,
-    complexity: 'low' | 'medium' | 'high',
-    fileCount: number
-  ): number {
-    // Base estimates in seconds
-    const baseEstimates = {
-      low: 30,
-      medium: 90,
-      high: 180
-    };
+  async clearCompleted() {
+    const completed = Array.from(this.tasks.values()).filter(
+      t => t.status === 'completed' || t.status === 'failed'
+    );
 
-    let estimate = baseEstimates[complexity];
-    
-    // Add time per file (10 seconds per file)
-    estimate += fileCount * 10;
-    
-    // Add overhead for task type
-    const typeMultipliers = {
-      code_generation: 1.5,
-      analysis: 0.5,
-      validation: 0.8
-    };
-    
-    estimate *= typeMultipliers[taskType as keyof typeof typeMultipliers] || 1;
+    const db = await this.openDB();
+    const transaction = db.transaction(['tasks'], 'readwrite');
+    const store = transaction.objectStore('tasks');
 
-    return Math.floor(estimate);
+    for (const task of completed) {
+      store.delete(task.id);
+      this.tasks.delete(task.id);
+      this.listeners.delete(task.id);
+    }
+
+    console.log(`??? Cleared ${completed.length} completed tasks`);
   }
 }
 
-// Export singleton
 export const backgroundTaskManager = new BackgroundTaskManager();

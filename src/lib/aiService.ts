@@ -1,12 +1,22 @@
 import { getModel, getDefaultModel, type GeminiModel } from './geminiModels';
 import { logger } from './logger';
 
+interface CacheEntry {
+  prompt: string;
+  response: string;
+  timestamp: number;
+  model: string;
+}
+
 export class AIService {
   private model: string;
+  private cache: Map<string, CacheEntry> = new Map();
+  private readonly CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
 
   constructor(model?: string) {
     // Use provided model, or check localStorage, or default to gemini-2.5-flash
     this.model = model || this.getSavedModel() || "gemini-2.5-flash";
+    this.loadCache();
   }
 
   /**
@@ -41,11 +51,105 @@ export class AIService {
   }
 
   private getApiKey(): string | null {
-    // Prioritize environment variable, fall back to localStorage
-    return import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem("google_api_key");
+    // Prioritize environment variable, fall back to localStorage, then OAuth
+    return import.meta.env.VITE_GOOGLE_API_KEY || 
+           localStorage.getItem("google_api_key") ||
+           this.getOAuthToken();
   }
 
-  private async makeApiRequest(prompt: string): Promise<string> {
+  private getOAuthToken(): string | null {
+    const oauthData = localStorage.getItem("oauth_google");
+    if (oauthData) {
+      try {
+        const token = JSON.parse(oauthData);
+        return token.accessToken;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Load cache from localStorage
+   */
+  private loadCache(): void {
+    try {
+      const cached = localStorage.getItem('ai_response_cache');
+      if (cached) {
+        const entries = JSON.parse(cached);
+        this.cache = new Map(entries);
+        // Clean expired entries
+        this.cleanExpiredCache();
+      }
+    } catch (error) {
+      logger.error('AIService', 'Failed to load cache', String(error));
+    }
+  }
+
+  /**
+   * Save cache to localStorage
+   */
+  private saveCache(): void {
+    try {
+      const entries = Array.from(this.cache.entries());
+      localStorage.setItem('ai_response_cache', JSON.stringify(entries));
+    } catch (error) {
+      logger.error('AIService', 'Failed to save cache', String(error));
+    }
+  }
+
+  /**
+   * Clean expired cache entries
+   */
+  private cleanExpiredCache(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > this.CACHE_DURATION) {
+        this.cache.delete(key);
+      }
+    }
+    this.saveCache();
+  }
+
+  /**
+   * Get cached response if available
+   */
+  private getCachedResponse(prompt: string): string | null {
+    const cacheKey = `${this.model}:${prompt}`;
+    const entry = this.cache.get(cacheKey);
+    
+    if (entry && Date.now() - entry.timestamp < this.CACHE_DURATION) {
+      logger.debug('AIService', 'Cache hit', `Using cached response for prompt`);
+      return entry.response;
+    }
+    
+    return null;
+  }
+
+  /**
+   * Cache a response
+   */
+  private cacheResponse(prompt: string, response: string): void {
+    const cacheKey = `${this.model}:${prompt}`;
+    this.cache.set(cacheKey, {
+      prompt,
+      response,
+      timestamp: Date.now(),
+      model: this.model
+    });
+    this.saveCache();
+  }
+
+  private async makeApiRequest(prompt: string, useCache: boolean = true): Promise<string> {
+    // Check cache first
+    if (useCache) {
+      const cached = this.getCachedResponse(prompt);
+      if (cached) {
+        return cached;
+      }
+    }
+
     const apiKey = this.getApiKey();
     
     if (!apiKey) {
@@ -57,8 +161,11 @@ export class AIService {
       throw error;
     }
 
+    const startTime = Date.now();
+
     try {
       logger.debug('AIService', `Making API request to /api/generate`, `Model: ${this.model}`);
+      
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
@@ -67,7 +174,12 @@ export class AIService {
         body: JSON.stringify({
           model: this.model,
           prompt: prompt,
-          apiKey: apiKey, // Send API key with request
+          apiKey: apiKey,
+          // Enhanced generation parameters for better quality
+          temperature: 0.7,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 8192,
         }),
       });
 
@@ -87,7 +199,14 @@ export class AIService {
         throw new Error(fullError);
       }
 
-      logger.success('AIService', 'API request successful', `Received ${data.text?.length || 0} characters`);
+      const duration = Date.now() - startTime;
+      logger.success('AIService', 'API request successful', `Received ${data.text?.length || 0} characters in ${duration}ms`);
+      
+      // Cache the response
+      if (useCache) {
+        this.cacheResponse(prompt, data.text);
+      }
+
       return data.text;
     } catch (error) {
       // Handle network errors
@@ -108,27 +227,67 @@ export class AIService {
 
   async generateCode(prompt: string, context?: string): Promise<string> {
     logger.info('AIService', 'Generating code', `Prompt length: ${prompt.length} chars`);
-    const fullPrompt = `You are an expert autonomous coding agent. Generate production-ready code based on this task:\n\n${prompt}${context ? `\n\nContext:\n${context}` : ""}\n\nProvide complete, working code with proper error handling, types, and best practices.`;
     
-    return this.makeApiRequest(fullPrompt);
+    // Enhanced prompt for better AI intelligence
+    const enhancedPrompt = `You are an elite autonomous coding agent with deep expertise in modern web development, software architecture, and best practices.
+
+TASK: ${prompt}
+
+${context ? `CONTEXT:\n${context}\n\n` : ""}
+
+REQUIREMENTS:
+- Generate production-ready, enterprise-grade code
+- Include comprehensive error handling and edge cases
+- Use TypeScript with proper type safety
+- Follow SOLID principles and clean code practices
+- Add helpful comments for complex logic
+- Ensure code is performant and optimized
+- Make it mobile-responsive if it's UI code
+- Include proper validation and security considerations
+
+OUTPUT FORMAT:
+- Provide complete, runnable code
+- Use modern ES6+ syntax
+- Structure code logically with clear separation of concerns
+- Add brief explanation of key design decisions
+
+Generate the code now:`;
+    
+    return this.makeApiRequest(enhancedPrompt, false); // Don't cache code generation
   }
 
   async analyzeTask(task: string): Promise<{
     steps: string[];
     files: string[];
     complexity: "low" | "medium" | "high";
+    estimatedTime?: number;
+    dependencies?: string[];
   }> {
     logger.info('AIService', 'Analyzing task', `Task: ${task.substring(0, 100)}...`);
-    const fullPrompt = `Analyze this coding task and break it down into steps. Return ONLY a JSON object with this structure:
+    
+    const enhancedPrompt = `As an expert software architect, analyze this coding task with precision.
+
+TASK: ${task}
+
+Provide a detailed analysis in the following JSON format (return ONLY the JSON, no markdown):
 {
-  "steps": ["step 1", "step 2", ...],
-  "files": ["file1.tsx", "file2.ts", ...],
-  "complexity": "low|medium|high"
+  "steps": ["detailed step 1", "detailed step 2", ...],
+  "files": ["path/to/file1.tsx", "path/to/file2.ts", ...],
+  "complexity": "low|medium|high",
+  "estimatedTime": <minutes>,
+  "dependencies": ["dependency1", "dependency2", ...]
 }
 
-Task: ${task}`;
+Consider:
+- Break down into specific, actionable steps
+- List all files that need to be created or modified
+- Assess complexity based on scope, technical challenges, and dependencies
+- Estimate time in minutes
+- Identify required libraries/packages
 
-    const text = await this.makeApiRequest(fullPrompt);
+Return the JSON now:`;
+
+    const text = await this.makeApiRequest(enhancedPrompt, true); // Cache analysis
     
     // Extract JSON from potential markdown code blocks
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -138,7 +297,33 @@ Task: ${task}`;
     }
     
     const result = JSON.parse(jsonMatch[0]);
-    logger.success('AIService', 'Task analysis complete', `Complexity: ${result.complexity}, Steps: ${result.steps.length}`);
+    logger.success('AIService', 'Task analysis complete', `Complexity: ${result.complexity}, Steps: ${result.steps.length}, Est. time: ${result.estimatedTime || 'N/A'}min`);
     return result;
+  }
+
+  /**
+   * Clear the response cache
+   */
+  clearCache(): void {
+    this.cache.clear();
+    localStorage.removeItem('ai_response_cache');
+    logger.info('AIService', 'Cache cleared', 'All cached responses removed');
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats(): { entries: number; oldestEntry: number; newestEntry: number } {
+    const entries = Array.from(this.cache.values());
+    if (entries.length === 0) {
+      return { entries: 0, oldestEntry: 0, newestEntry: 0 };
+    }
+
+    const timestamps = entries.map(e => e.timestamp);
+    return {
+      entries: entries.length,
+      oldestEntry: Math.min(...timestamps),
+      newestEntry: Math.max(...timestamps)
+    };
   }
 }

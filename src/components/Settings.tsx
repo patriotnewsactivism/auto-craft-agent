@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings as SettingsIcon, Eye, EyeOff, CheckCircle, Zap, Brain, Gauge, Mic } from "lucide-react";
+import { Settings as SettingsIcon, Eye, EyeOff, CheckCircle, Zap, Brain, Gauge, Mic, LogIn, LogOut, Github } from "lucide-react";
 import { getAllModels } from "@/lib/geminiModels";
+import { oauthService } from "@/lib/oauthService";
+import { Separator } from "@/components/ui/separator";
 
 interface SettingsProps {
   open: boolean;
@@ -22,11 +24,12 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
   const [showGoogle, setShowGoogle] = useState(false);
   const [showGithub, setShowGithub] = useState(false);
   const [showSupabase, setShowSupabase] = useState(false);
+  const [githubUser, setGithubUser] = useState<any>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const { toast } = useToast();
   const availableModels = getAllModels();
 
   // Check for environment variables
-  // VITE_ prefix exposes them to the client-side (browser)
   const googleKeyFromEnv = import.meta.env.VITE_GOOGLE_API_KEY;
   const githubTokenFromEnv = import.meta.env.VITE_GITHUB_TOKEN;
   const supabaseUrlFromEnv = import.meta.env.VITE_SUPABASE_URL;
@@ -45,7 +48,99 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
     if (savedGithub) setGithubToken(savedGithub);
     if (savedSupabaseUrl) setSupabaseUrl(savedSupabaseUrl);
     if (savedSupabaseKey) setSupabaseKey(savedSupabaseKey);
+
+    // Check GitHub authentication
+    if (oauthService.isAuthenticated('github')) {
+      loadGitHubUser();
+    }
   }, [open, googleKeyFromEnv, githubTokenFromEnv, supabaseUrlFromEnv, supabaseKeyFromEnv]);
+
+  const loadGitHubUser = async () => {
+    try {
+      const user = await oauthService.getGitHubUser();
+      setGithubUser(user);
+    } catch (error) {
+      console.error('Failed to load GitHub user:', error);
+    }
+  };
+
+  const handleGitHubLogin = async () => {
+    setIsAuthenticating(true);
+    try {
+      await oauthService.loginWithGitHub();
+      await loadGitHubUser();
+      toast({
+        title: "? Connected to GitHub",
+        description: "You can now sync your projects directly to GitHub!",
+      });
+    } catch (error) {
+      toast({
+        title: "? GitHub Login Failed",
+        description: error instanceof Error ? error.message : "Failed to authenticate",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsAuthenticating(true);
+    try {
+      await oauthService.loginWithGoogle();
+      toast({
+        title: "? Connected to Google AI",
+        description: "You're ready to use Gemini models!",
+      });
+      // Reload keys
+      const token = oauthService.getToken('google');
+      if (token) setGoogleKey(token.accessToken);
+    } catch (error) {
+      toast({
+        title: "? Google Login Failed",
+        description: error instanceof Error ? error.message : "Failed to authenticate",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleSupabaseLogin = async () => {
+    setIsAuthenticating(true);
+    try {
+      await oauthService.loginWithSupabase();
+      toast({
+        title: "? Connected to Supabase",
+        description: "Autonomous learning features enabled!",
+      });
+    } catch (error) {
+      toast({
+        title: "? Supabase Login Failed",
+        description: error instanceof Error ? error.message : "Failed to authenticate",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleLogout = (provider: 'github' | 'google' | 'supabase') => {
+    oauthService.logout(provider);
+    if (provider === 'github') {
+      setGithubToken("");
+      setGithubUser(null);
+    } else if (provider === 'google') {
+      setGoogleKey("");
+    } else if (provider === 'supabase') {
+      setSupabaseKey("");
+      setSupabaseUrl("");
+    }
+    toast({
+      title: "?? Logged out",
+      description: `Disconnected from ${provider}`,
+    });
+  };
 
   const handleSave = () => {
     // Only save to local storage if not provided by env
@@ -63,8 +158,8 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
       localStorage.setItem("supabase_key", supabaseKey);
     }
     toast({
-      title: "Settings Saved ?",
-      description: "API keys and model preferences have been securely stored in your browser and will persist across sessions.",
+      title: "? Settings Saved",
+      description: "Your configuration has been updated successfully.",
     });
     onOpenChange(false);
   };
@@ -78,206 +173,286 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto tech-card border-primary/20">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <SettingsIcon className="h-5 w-5" />
-            API Configuration
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <SettingsIcon className="h-5 w-5 text-primary" />
+            <span className="gradient-text">Configuration</span>
           </DialogTitle>
-          <DialogDescription>
-            Configure your API keys for AI and GitHub integration. Your keys are saved locally in your browser and automatically persist.
+          <DialogDescription className="text-muted-foreground">
+            Connect your services with one-click OAuth login. No more copying API keys!
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="google">Google AI API Key</Label>
-            <div className="relative">
-              <Input
-                id="google"
-                type={showGoogle ? "text" : "password"}
-                value={googleKey}
-                onChange={(e) => setGoogleKey(e.target.value)}
-                placeholder={googleKeyFromEnv ? "Loaded from environment" : "AIzaSy..."}
-                className="pr-10"
-                disabled={!!googleKeyFromEnv}
-                autoComplete="off"
-                data-form-type="other"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowGoogle(!showGoogle)}
-                disabled={!!googleKeyFromEnv}
-              >
-                {googleKeyFromEnv ? (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                ) : showGoogle ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Get your key from{" "}
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                Google AI Studio
-              </a>
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="model">Gemini Model</Label>
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a model" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableModels.map((model) => (
-                  <SelectItem key={model.id} value={model.id}>
-                    <div className="flex items-center gap-2">
-                      {getModelIcon(model.id)}
-                      <div>
-                        <div className="font-medium">{model.name}</div>
-                        <div className="text-xs text-muted-foreground">{model.description}</div>
-                      </div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Choose the model that best fits your needs. Flash is recommended for most tasks.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="github">GitHub Personal Access Token</Label>
-            <div className="relative">
-              <Input
-                id="github"
-                type={showGithub ? "text" : "password"}
-                value={githubToken}
-                onChange={(e) => setGithubToken(e.target.value)}
-                placeholder={githubTokenFromEnv ? "Loaded from environment" : "ghp_..."}
-                className="pr-10"
-                disabled={!!githubTokenFromEnv}
-                autoComplete="off"
-                data-form-type="other"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowGithub(!showGithub)}
-                disabled={!!githubTokenFromEnv}
-              >
-                {githubTokenFromEnv ? (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                ) : showGithub ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Create token at{" "}
-              <a
-                href="https://github.com/settings/tokens"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                github.com/settings/tokens
-              </a>{" "}
-              (needs repo scope)
-            </p>
-          </div>
-
-          <div className="border-t pt-4 space-y-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold">Supabase - Autonomous Memory</h3>
-              <span className="text-xs text-muted-foreground">(Optional - Enables learning)</span>
+          {/* GitHub OAuth */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Github className="h-5 w-5 text-primary" />
+                <Label className="text-base font-semibold">GitHub</Label>
+              </div>
+              {oauthService.isAuthenticated('github') && githubUser && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <img src={githubUser.avatar_url} alt={githubUser.login} className="w-6 h-6 rounded-full" />
+                  <span>{githubUser.login}</span>
+                </div>
+              )}
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="supabaseUrl">Supabase Project URL</Label>
-              <Input
-                id="supabaseUrl"
-                type="text"
-                value={supabaseUrl}
-                onChange={(e) => setSupabaseUrl(e.target.value)}
-                placeholder={supabaseUrlFromEnv ? "Loaded from environment" : "https://xxx.supabase.co"}
-                disabled={!!supabaseUrlFromEnv}
-                autoComplete="off"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="supabaseKey">Supabase Anon Key</Label>
-              <div className="relative">
-                <Input
-                  id="supabaseKey"
-                  type={showSupabase ? "text" : "password"}
-                  value={supabaseKey}
-                  onChange={(e) => setSupabaseKey(e.target.value)}
-                  placeholder={supabaseKeyFromEnv ? "Loaded from environment" : "eyJhbGciOi..."}
-                  className="pr-10"
-                  disabled={!!supabaseKeyFromEnv}
-                  autoComplete="off"
-                  data-form-type="other"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowSupabase(!showSupabase)}
-                  disabled={!!supabaseKeyFromEnv}
+            {!oauthService.isAuthenticated('github') && !githubTokenFromEnv ? (
+              <>
+                <Button 
+                  onClick={handleGitHubLogin} 
+                  disabled={isAuthenticating}
+                  className="w-full bg-primary hover:bg-primary/90 glow-border"
                 >
-                  {supabaseKeyFromEnv ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : showSupabase ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  <LogIn className="h-4 w-4 mr-2" />
+                  {isAuthenticating ? "Connecting..." : "Login with GitHub"}
                 </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or use token</span>
+                  </div>
+                </div>
+                <div className="relative">
+                  <Input
+                    type={showGithub ? "text" : "password"}
+                    value={githubToken}
+                    onChange={(e) => setGithubToken(e.target.value)}
+                    placeholder="ghp_..."
+                    className="pr-10 bg-input border-border"
+                    autoComplete="off"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowGithub(!showGithub)}
+                  >
+                    {showGithub ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-md">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-primary" />
+                  <span className="text-sm">Connected</span>
+                </div>
+                {!githubTokenFromEnv && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleLogout('github')}
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    Logout
+                  </Button>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Get from{" "}
-                <a
-                  href="https://app.supabase.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Supabase Dashboard
-                </a>{" "}
-                ? Project Settings ? API
-              </p>
+            )}
+          </div>
+
+          <Separator className="bg-border" />
+
+          {/* Google AI OAuth */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 text-primary">??</div>
+              <Label className="text-base font-semibold">Google AI (Gemini)</Label>
             </div>
+            
+            {!oauthService.isAuthenticated('google') && !googleKeyFromEnv ? (
+              <>
+                <Button 
+                  onClick={handleGoogleLogin} 
+                  disabled={isAuthenticating}
+                  className="w-full bg-primary hover:bg-primary/90 glow-border"
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  {isAuthenticating ? "Connecting..." : "Login with Google"}
+                </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or use API key</span>
+                  </div>
+                </div>
+                <div className="relative">
+                  <Input
+                    type={showGoogle ? "text" : "password"}
+                    value={googleKey}
+                    onChange={(e) => setGoogleKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="pr-10 bg-input border-border"
+                    autoComplete="off"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowGoogle(!showGoogle)}
+                  >
+                    {showGoogle ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Get your key from{" "}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Google AI Studio
+                  </a>
+                </p>
+              </>
+            ) : (
+              <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-md">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-primary" />
+                  <span className="text-sm">Connected</span>
+                </div>
+                {!googleKeyFromEnv && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleLogout('google')}
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    Logout
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Model Selection */}
+            <div className="space-y-2 pt-2">
+              <Label htmlFor="model" className="text-sm">AI Model</Label>
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger className="bg-input border-border">
+                  <SelectValue placeholder="Select a model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      <div className="flex items-center gap-2">
+                        {getModelIcon(model.id)}
+                        <div className="text-left">
+                          <div className="font-medium text-sm">{model.name}</div>
+                          <div className="text-xs text-muted-foreground hidden sm:block">{model.description}</div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Separator className="bg-border" />
+
+          {/* Supabase OAuth */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-5 text-accent">??</div>
+                <Label className="text-base font-semibold">Supabase</Label>
+              </div>
+              <span className="text-xs text-muted-foreground bg-accent/10 px-2 py-1 rounded">Optional</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Enable autonomous learning and project memory
+            </p>
+            
+            {!oauthService.isAuthenticated('supabase') && !supabaseKeyFromEnv ? (
+              <>
+                <Button 
+                  onClick={handleSupabaseLogin} 
+                  disabled={isAuthenticating || !supabaseUrl}
+                  variant="outline"
+                  className="w-full border-accent/30 hover:bg-accent/10"
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  {isAuthenticating ? "Connecting..." : "Login with Supabase"}
+                </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or enter manually</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Input
+                    type="text"
+                    value={supabaseUrl}
+                    onChange={(e) => setSupabaseUrl(e.target.value)}
+                    placeholder="https://xxx.supabase.co"
+                    className="bg-input border-border"
+                    autoComplete="off"
+                  />
+                  <div className="relative">
+                    <Input
+                      type={showSupabase ? "text" : "password"}
+                      value={supabaseKey}
+                      onChange={(e) => setSupabaseKey(e.target.value)}
+                      placeholder="eyJhbGciOi..."
+                      className="pr-10 bg-input border-border"
+                      autoComplete="off"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowSupabase(!showSupabase)}
+                    >
+                      {showSupabase ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between p-3 bg-accent/10 border border-accent/20 rounded-md">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-accent" />
+                  <span className="text-sm">Connected</span>
+                </div>
+                {!supabaseKeyFromEnv && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleLogout('supabase')}
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    Logout
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-border">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto border-border">
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save Keys</Button>
+          <Button onClick={handleSave} className="w-full sm:w-auto bg-primary hover:bg-primary/90 glow-border">
+            Save Configuration
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 };
-
