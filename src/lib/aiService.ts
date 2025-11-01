@@ -75,6 +75,10 @@ export class AIService {
    */
   private loadCache(): void {
     try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return; // Skip if localStorage not available
+      }
+      
       const cached = localStorage.getItem('ai_response_cache');
       if (cached) {
         const entries = JSON.parse(cached);
@@ -84,6 +88,8 @@ export class AIService {
       }
     } catch (error) {
       logger.error('AIService', 'Failed to load cache', String(error));
+      // Don't throw - just skip cache loading
+      this.cache = new Map();
     }
   }
 
@@ -92,10 +98,15 @@ export class AIService {
    */
   private saveCache(): void {
     try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return; // Skip if localStorage not available
+      }
+      
       const entries = Array.from(this.cache.entries());
       localStorage.setItem('ai_response_cache', JSON.stringify(entries));
     } catch (error) {
       logger.error('AIService', 'Failed to save cache', String(error));
+      // Don't throw - just skip cache saving
     }
   }
 

@@ -22,7 +22,24 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+    console.error("[ACW ErrorBoundary] Uncaught error:", error, errorInfo);
+    
+    // Try to log to localStorage for debugging
+    try {
+      const errorLog = {
+        timestamp: new Date().toISOString(),
+        error: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack
+      };
+      const existingErrors = localStorage.getItem('acw_error_log');
+      const errors = existingErrors ? JSON.parse(existingErrors) : [];
+      errors.push(errorLog);
+      // Keep only last 10 errors
+      localStorage.setItem('acw_error_log', JSON.stringify(errors.slice(-10)));
+    } catch (logError) {
+      console.error("[ACW ErrorBoundary] Failed to log error:", logError);
+    }
   }
 
   private handleReset = () => {

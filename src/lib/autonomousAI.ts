@@ -395,8 +395,8 @@ Return ONLY a JSON array of detailed step descriptions:
     const insights: string[] = [
       `?? Self-learning AI is ALWAYS ACTIVE`,
       `?? Total tasks learned from: ${stats.tasksCompleted}`,
-      `? Patterns discovered: ${stats.patternsLearned}`,
-      `?? Autonomous decisions made: ${stats.decisionsMade}`
+      `?? Patterns discovered: ${stats.patternsLearned}`,
+      `? Autonomous decisions made: ${stats.decisionsMade}`
     ];
     
     if (successRate > 0) {

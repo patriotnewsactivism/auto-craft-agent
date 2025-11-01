@@ -104,24 +104,46 @@ const Index = () => {
 
   // Load settings and insights on mount
   useEffect(() => {
-    const savedRepo = localStorage.getItem("connected_repo");
-    const savedAutoSync = localStorage.getItem("auto_sync_enabled");
-    const savedInterval = localStorage.getItem("sync_interval");
-
-    if (savedRepo) {
+    const initializeApp = async () => {
       try {
-        setConnectedRepo(JSON.parse(savedRepo));
-      } catch (e) {
-        logger.error("Settings", "Failed to parse saved repo", String(e));
-      }
-    }
-    if (savedAutoSync) setAutoSyncEnabled(savedAutoSync === "true");
-    if (savedInterval) setSyncInterval(Number(savedInterval));
+        const savedRepo = localStorage.getItem("connected_repo");
+        const savedAutoSync = localStorage.getItem("auto_sync_enabled");
+        const savedInterval = localStorage.getItem("sync_interval");
 
-    // Load autonomous insights
-    if (learningEnabled) {
-      loadInsights();
-    }
+        if (savedRepo) {
+          try {
+            setConnectedRepo(JSON.parse(savedRepo));
+          } catch (e) {
+            logger.error("Settings", "Failed to parse saved repo", String(e));
+          }
+        }
+        if (savedAutoSync) setAutoSyncEnabled(savedAutoSync === "true");
+        if (savedInterval) setSyncInterval(Number(savedInterval));
+
+        // Load autonomous insights with timeout protection
+        if (learningEnabled) {
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Insights loading timeout")), 5000)
+          );
+          
+          try {
+            await Promise.race([loadInsights(), timeoutPromise]);
+          } catch (error) {
+            logger.warning("Settings", "Insights loading timed out or failed, using defaults");
+            setAutonomousInsights([
+              "🧠 Self-learning AI is ALWAYS ACTIVE",
+              "📊 Ready to learn from your tasks",
+              "🎯 Patterns will be discovered as you code",
+              "⚡ Autonomous decisions will be made intelligently"
+            ]);
+          }
+        }
+      } catch (error) {
+        logger.logError("Settings", error, "Failed to initialize app settings");
+      }
+    };
+
+    initializeApp();
   }, [learningEnabled]);
 
   useEffect(() => {
@@ -141,6 +163,13 @@ const Index = () => {
       logger.success("Insights", `Loaded ${insights.length} insights`);
     } catch (error) {
       logger.logError("Insights", error, "Failed to load autonomous insights");
+      // Set default insights on error to prevent blocking
+      setAutonomousInsights([
+        "🧠 Self-learning AI is ALWAYS ACTIVE",
+        "📊 Ready to learn from your tasks",
+        "🎯 Patterns will be discovered as you code",
+        "⚡ Autonomous decisions will be made intelligently"
+      ]);
     }
   };
 
