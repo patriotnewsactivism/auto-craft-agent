@@ -78,18 +78,32 @@ export class GitHubService {
     message: string,
     sha?: string
   ) {
-    const encodedContent = btoa(unescape(encodeURIComponent(content)));
-    const body: { message: string; content: string; sha?: string } = {
-      message,
-      content: encodedContent,
-    };
-    if (sha) body.sha = sha;
+    try {
+      // Handle UTF-8 encoding properly
+      const encodedContent = btoa(
+        Array.from(new TextEncoder().encode(content))
+          .map(byte => String.fromCharCode(byte))
+          .join('')
+      );
+      
+      const body: { message: string; content: string; sha?: string } = {
+        message,
+        content: encodedContent,
+      };
+      
+      if (sha) {
+        body.sha = sha;
+      }
 
-    return this.fetch(`/repos/${owner}/${repo}/contents/${path}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+      return await this.fetch(`/repos/${owner}/${repo}/contents/${path}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      console.error(`Failed to create/update file ${path}:`, error);
+      throw error;
+    }
   }
 
   async getFileSha(owner: string, repo: string, path: string): Promise<string | undefined> {
@@ -109,22 +123,91 @@ export class GitHubService {
     repo: string,
     files: Array<{ path: string; content: string }>,
     commitMessage: string = "Sync from Autonomous Code Wizard"
-  ): Promise<{ pushed: string[]; failed: string[] }> {
+  ): Promise<{ pushed: string[]; failed: string[]; errors: string[] }> {
     const pushed: string[] = [];
     const failed: string[] = [];
+    const errors: string[] = [];
 
-    for (const file of files) {
-      try {
-        const sha = await this.getFileSha(owner, repo, file.path);
-        await this.createOrUpdateFile(owner, repo, file.path, file.content, commitMessage, sha);
-        pushed.push(file.path);
-      } catch (error) {
-        console.error(`Failed to sync ${file.path}:`, error);
-        failed.push(file.path);
+    console.log(`?? Starting GitHub sync to ${owner}/${repo}...`);
+    console.log(`?? Syncing ${files.length} files`);
+
+    if (!files || files.length === 0) {
+      throw new Error("No files to sync. Please generate some files first.");
+    }
+
+    // Validate token first
+    try {
+      await this.fetch('/user');
+      console.log('? GitHub authentication successful');
+    } catch (error) {
+      throw new Error(`GitHub authentication failed. Please check your token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    // Verify repo exists and we have access
+    try {
+      await this.fetch(`/repos/${owner}/${repo}`);
+      console.log(`? Repository ${owner}/${repo} is accessible`);
+    } catch (error) {
+      throw new Error(`Cannot access repository ${owner}/${repo}. Please check permissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    // Batch files to avoid rate limiting
+    const BATCH_SIZE = 10;
+    const DELAY_BETWEEN_BATCHES = 1000; // 1 second
+
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      console.log(`?? Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)}`);
+
+      const batchPromises = batch.map(async (file) => {
+        try {
+          console.log(`?? Uploading: ${file.path}`);
+          
+          // Validate file
+          if (!file.content) {
+            console.warn(`?? Skipping empty file: ${file.path}`);
+            failed.push(file.path);
+            errors.push(`${file.path}: Empty content`);
+            return;
+          }
+
+          // Get existing file SHA (if it exists)
+          const sha = await this.getFileSha(owner, repo, file.path);
+          
+          if (sha) {
+            console.log(`?? Updating existing file: ${file.path}`);
+          } else {
+            console.log(`? Creating new file: ${file.path}`);
+          }
+
+          await this.createOrUpdateFile(owner, repo, file.path, file.content, commitMessage, sha);
+          pushed.push(file.path);
+          console.log(`? Successfully synced: ${file.path}`);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`? Failed to sync ${file.path}:`, errorMsg);
+          failed.push(file.path);
+          errors.push(`${file.path}: ${errorMsg}`);
+        }
+      });
+
+      await Promise.all(batchPromises);
+
+      // Delay between batches to avoid rate limiting
+      if (i + BATCH_SIZE < files.length) {
+        console.log(`?? Waiting before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
       }
     }
 
-    return { pushed, failed };
+    console.log(`? GitHub sync completed!`);
+    console.log(`   - Pushed: ${pushed.length} files`);
+    if (failed.length > 0) {
+      console.log(`   - Failed: ${failed.length} files`);
+      console.log(`   - Errors:`, errors);
+    }
+
+    return { pushed, failed, errors };
   }
 
   async syncFromGitHub(

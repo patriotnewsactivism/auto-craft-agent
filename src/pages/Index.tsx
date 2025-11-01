@@ -455,43 +455,72 @@ const Index = () => {
   }, [connectedRepo, toast, addTerminalLine]);
 
   const handleSyncToGitHub = useCallback(async () => {
-    if (!connectedRepo || fileTree.length === 0) return;
+    if (!connectedRepo || fileTree.length === 0) {
+      toast({
+        title: "Cannot Sync",
+        description: connectedRepo ? "No files to sync" : "No repository connected",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const token = import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem("github_token");
-    if (!token) return;
+    if (!token) {
+      toast({
+        title: "GitHub Token Required",
+        description: "Please add your GitHub token in Settings",
+        variant: "destructive",
+      });
+      setSettingsOpen(true);
+      return;
+    }
 
     setIsSyncing(true);
-    addTerminalLine(`Syncing to GitHub: ${connectedRepo.full_name}`, "command");
+    addTerminalLine(`🚀 Starting GitHub sync to ${connectedRepo.full_name}...`, "command");
 
     try {
       const service = new GitHubService(token);
       const [owner, repoName] = connectedRepo.full_name.split("/");
       
       const files = ExportService.flattenFileTree(fileTree);
+      addTerminalLine(`📁 Preparing to sync ${files.length} files...`, "output");
+      
       const result = await service.syncToGitHub(owner, repoName, files);
       
       setLastSyncTime(new Date());
-      addTerminalLine(`✓ Pushed ${result.pushed.length} files to ${connectedRepo.name}`, "success");
       
-      if (result.failed.length > 0) {
-        addTerminalLine(`⚠ ${result.failed.length} files failed to sync`, "error");
+      if (result.pushed.length > 0) {
+        addTerminalLine(`✅ Successfully pushed ${result.pushed.length} files to ${connectedRepo.name}`, "success");
       }
       
-      toast({
-        title: "Synced to GitHub",
-        description: `Pushed ${result.pushed.length} files`,
-      });
+      if (result.failed.length > 0) {
+        addTerminalLine(`⚠️ ${result.failed.length} files failed to sync:`, "error");
+        result.errors.forEach(err => addTerminalLine(`  - ${err}`, "error"));
+        
+        toast({
+          title: "Partial Sync",
+          description: `Pushed ${result.pushed.length} files, but ${result.failed.length} failed`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "✅ Synced to GitHub",
+          description: `Successfully pushed ${result.pushed.length} files to ${connectedRepo.name}`,
+        });
+      }
     } catch (error) {
-      addTerminalLine(`✗ Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      addTerminalLine(`❌ Sync failed: ${errorMsg}`, "error");
+      console.error('GitHub sync error:', error);
       toast({
-        title: "Sync Failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: "❌ Sync Failed",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {
       setIsSyncing(false);
     }
-  }, [connectedRepo, fileTree, toast, addTerminalLine]);
+  }, [connectedRepo, fileTree, toast, addTerminalLine, setSettingsOpen]);
 
   const handleBidirectionalSync = useCallback(async () => {
     if (!connectedRepo) return;
@@ -527,15 +556,20 @@ const Index = () => {
     }
 
     try {
-      await ExportService.exportAsZip(fileTree, "generated-code");
+      addTerminalLine(`📦 Exporting ${fileTree.length} files to ZIP...`, "command");
+      await ExportService.exportAsZip(fileTree, "autonomous-code-wizard-project");
+      addTerminalLine(`✅ ZIP export completed successfully!`, "success");
       toast({
-        title: "Export Successful",
-        description: "Files downloaded as ZIP",
+        title: "✅ Export Successful",
+        description: "Your files have been downloaded as a ZIP file",
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      addTerminalLine(`❌ ZIP export failed: ${errorMessage}`, "error");
+      console.error('Export error:', error);
       toast({
-        title: "Export Failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: "❌ Export Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     }
