@@ -64,65 +64,31 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
     }
   };
 
-  const handleGitHubLogin = async () => {
-    setIsAuthenticating(true);
-    try {
-      await oauthService.loginWithGitHub();
-      await loadGitHubUser();
-      toast({
-        title: "? Connected to GitHub",
-        description: "You can now sync your projects directly to GitHub!",
-      });
-    } catch (error) {
-      toast({
-        title: "? GitHub Login Failed",
-        description: error instanceof Error ? error.message : "Failed to authenticate",
-        variant: "destructive",
-      });
-    } finally {
-      setIsAuthenticating(false);
-    }
+  const handleGitHubLogin = () => {
+    // Open GitHub personal access token page
+    window.open('https://github.com/settings/tokens/new?description=Autonomous%20Code%20Wizard&scopes=repo', '_blank');
+    toast({
+      title: "?? Create GitHub Token",
+      description: "Copy your token and paste it below",
+    });
   };
 
-  const handleGoogleLogin = async () => {
-    setIsAuthenticating(true);
-    try {
-      await oauthService.loginWithGoogle();
-      toast({
-        title: "? Connected to Google AI",
-        description: "You're ready to use Gemini models!",
-      });
-      // Reload keys
-      const token = oauthService.getToken('google');
-      if (token) setGoogleKey(token.accessToken);
-    } catch (error) {
-      toast({
-        title: "? Google Login Failed",
-        description: error instanceof Error ? error.message : "Failed to authenticate",
-        variant: "destructive",
-      });
-    } finally {
-      setIsAuthenticating(false);
-    }
+  const handleGoogleLogin = () => {
+    // Open Google AI Studio to get API key
+    window.open('https://aistudio.google.com/app/apikey', '_blank');
+    toast({
+      title: "?? Get Your API Key",
+      description: "Copy your key and paste it below",
+    });
   };
 
-  const handleSupabaseLogin = async () => {
-    setIsAuthenticating(true);
-    try {
-      await oauthService.loginWithSupabase();
-      toast({
-        title: "? Connected to Supabase",
-        description: "Autonomous learning features enabled!",
-      });
-    } catch (error) {
-      toast({
-        title: "? Supabase Login Failed",
-        description: error instanceof Error ? error.message : "Failed to authenticate",
-        variant: "destructive",
-      });
-    } finally {
-      setIsAuthenticating(false);
-    }
+  const handleSupabaseLogin = () => {
+    // Open Supabase dashboard
+    window.open('https://app.supabase.com', '_blank');
+    toast({
+      title: "?? Supabase Dashboard",
+      description: "Copy your project URL and anon key from Settings > API",
+    });
   };
 
   const handleLogout = (provider: 'github' | 'google' | 'supabase') => {
@@ -180,7 +146,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
             <span className="gradient-text">Configuration</span>
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Connect your services with one-click OAuth login. No more copying API keys!
+            Configure your API keys and credentials to unlock all features.
           </DialogDescription>
         </DialogHeader>
 
@@ -192,32 +158,23 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
                 <Github className="h-5 w-5 text-primary" />
                 <Label className="text-base font-semibold">GitHub</Label>
               </div>
-              {oauthService.isAuthenticated('github') && githubUser && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <img src={githubUser.avatar_url} alt={githubUser.login} className="w-6 h-6 rounded-full" />
-                  <span>{githubUser.login}</span>
+              {githubToken && (
+                <div className="text-xs text-muted-foreground">
+                  ? Configured
                 </div>
               )}
             </div>
             
-            {!oauthService.isAuthenticated('github') && !githubTokenFromEnv ? (
+            {!githubToken && !githubTokenFromEnv ? (
               <>
                 <Button 
-                  onClick={handleGitHubLogin} 
-                  disabled={isAuthenticating}
-                  className="w-full bg-primary hover:bg-primary/90 glow-border"
+                  onClick={handleGitHubLogin}
+                  variant="outline"
+                  className="w-full border-primary/30 hover:bg-primary/10"
                 >
                   <LogIn className="h-4 w-4 mr-2" />
-                  {isAuthenticating ? "Connecting..." : "Login with GitHub"}
+                  Get GitHub Token
                 </Button>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">or use token</span>
-                  </div>
-                </div>
                 <div className="relative">
                   <Input
                     type={showGithub ? "text" : "password"}
@@ -237,6 +194,9 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
                     {showGithub ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Click the button above to create a token, then paste it here
+                </p>
               </>
             ) : (
               <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-md">
@@ -267,24 +227,16 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
               <Label className="text-base font-semibold">Google AI (Gemini)</Label>
             </div>
             
-            {!oauthService.isAuthenticated('google') && !googleKeyFromEnv ? (
+            {!googleKey && !googleKeyFromEnv ? (
               <>
                 <Button 
-                  onClick={handleGoogleLogin} 
-                  disabled={isAuthenticating}
-                  className="w-full bg-primary hover:bg-primary/90 glow-border"
+                  onClick={handleGoogleLogin}
+                  variant="outline"
+                  className="w-full border-primary/30 hover:bg-primary/10"
                 >
                   <LogIn className="h-4 w-4 mr-2" />
-                  {isAuthenticating ? "Connecting..." : "Login with Google"}
+                  Get Google AI Key
                 </Button>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">or use API key</span>
-                  </div>
-                </div>
                 <div className="relative">
                   <Input
                     type={showGoogle ? "text" : "password"}
@@ -305,15 +257,7 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Get your key from{" "}
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Google AI Studio
-                  </a>
+                  Click the button above to get your API key, then paste it here
                 </p>
               </>
             ) : (
@@ -374,54 +318,54 @@ export const Settings = ({ open, onOpenChange }: SettingsProps) => {
               Enable autonomous learning and project memory
             </p>
             
-            {!oauthService.isAuthenticated('supabase') && !supabaseKeyFromEnv ? (
+            {(!supabaseUrl || !supabaseKey) && !supabaseKeyFromEnv ? (
               <>
                 <Button 
-                  onClick={handleSupabaseLogin} 
-                  disabled={isAuthenticating || !supabaseUrl}
+                  onClick={handleSupabaseLogin}
                   variant="outline"
                   className="w-full border-accent/30 hover:bg-accent/10"
                 >
                   <LogIn className="h-4 w-4 mr-2" />
-                  {isAuthenticating ? "Connecting..." : "Login with Supabase"}
+                  Open Supabase Dashboard
                 </Button>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">or enter manually</span>
-                  </div>
-                </div>
                 <div className="space-y-2">
-                  <Input
-                    type="text"
-                    value={supabaseUrl}
-                    onChange={(e) => setSupabaseUrl(e.target.value)}
-                    placeholder="https://xxx.supabase.co"
-                    className="bg-input border-border"
-                    autoComplete="off"
-                  />
-                  <div className="relative">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Project URL</label>
                     <Input
-                      type={showSupabase ? "text" : "password"}
-                      value={supabaseKey}
-                      onChange={(e) => setSupabaseKey(e.target.value)}
-                      placeholder="eyJhbGciOi..."
-                      className="pr-10 bg-input border-border"
+                      type="text"
+                      value={supabaseUrl}
+                      onChange={(e) => setSupabaseUrl(e.target.value)}
+                      placeholder="https://xxx.supabase.co"
+                      className="bg-input border-border"
                       autoComplete="off"
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowSupabase(!showSupabase)}
-                    >
-                      {showSupabase ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Anon Key</label>
+                    <div className="relative">
+                      <Input
+                        type={showSupabase ? "text" : "password"}
+                        value={supabaseKey}
+                        onChange={(e) => setSupabaseKey(e.target.value)}
+                        placeholder="eyJhbGciOi..."
+                        className="pr-10 bg-input border-border"
+                        autoComplete="off"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowSupabase(!showSupabase)}
+                      >
+                        {showSupabase ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Find these in your Supabase project: Settings ? API
+                </p>
               </>
             ) : (
               <div className="flex items-center justify-between p-3 bg-accent/10 border border-accent/20 rounded-md">
