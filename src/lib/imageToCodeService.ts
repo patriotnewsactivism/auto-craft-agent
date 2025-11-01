@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from './logger';
+import { safeJsonParse } from './safeJsonParser';
 
 /**
  * Image to Code Service
@@ -316,16 +317,12 @@ Return ONLY the code, no explanations.`;
     };
 
     // Try to parse structured data from response
-    try {
-      // Look for JSON-like structures in response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        Object.assign(analysis, parsed);
-      }
-    } catch (error) {
+    const parseResult = safeJsonParse<Partial<ImageAnalysis>>(response);
+    if (parseResult.success && parseResult.data) {
+      Object.assign(analysis, parseResult.data);
+    } else {
       // If parsing fails, use defaults
-      logger.debug('ImageToCode', 'Using default analysis structure');
+      logger.debug('ImageToCode', 'Using default analysis structure', parseResult.error);
     }
 
     return analysis;

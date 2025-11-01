@@ -9,6 +9,69 @@ interface WorkerTask {
   data: any;
 }
 
+/**
+ * Safe JSON parser for worker context
+ * Validates JSON before parsing to catch truncated responses
+ */
+function safeParseJson(text: string): any {
+  // Extract JSON from potential markdown code blocks
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  
+  if (!jsonMatch) {
+    throw new Error('No valid JSON found in response. The AI response may be incomplete or truncated.');
+  }
+  
+  const jsonStr = jsonMatch[0];
+  
+  // Basic validation: check for unterminated strings
+  let braceCount = 0;
+  let inString = false;
+  let escaped = false;
+  
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+    
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+    
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    
+    if (inString) continue;
+    
+    if (char === '{') braceCount++;
+    if (char === '}') braceCount--;
+  }
+  
+  // Check if we're still in a string (unterminated string literal)
+  if (inString) {
+    throw new Error('JSON contains unterminated string. The response was likely truncated due to token limits.');
+  }
+  
+  // Check if braces are balanced
+  if (braceCount !== 0) {
+    throw new Error('JSON structure is incomplete. The response may have been truncated.');
+  }
+  
+  try {
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Unterminated string')) {
+      throw new Error('The AI response was truncated and contains an incomplete JSON string. Try using a shorter prompt or requesting less detailed output.');
+    }
+    throw error;
+  }
+}
+
 // Listen for messages from main thread
 self.onmessage = async (event: MessageEvent) => {
   const { type, task } = event.data;
@@ -140,11 +203,9 @@ Task: ${taskDescription}`,
   }
   
   const data = await response.json();
-  const jsonMatch = data.text.match(/\{[\s\S]*\}/);
   
-  if (!jsonMatch) {
-    throw new Error('Failed to parse AI response');
-  }
+  // Use safe JSON parser to handle truncated responses
+  const analysisResult = safeParseJson(data.text);
   
   self.postMessage({
     type: 'task_progress',
@@ -152,7 +213,7 @@ Task: ${taskDescription}`,
     progress: 100
   });
   
-  return JSON.parse(jsonMatch[0]);
+  return analysisResult;
 }
 
 async function handleGitHubSync(task: WorkerTask) {
