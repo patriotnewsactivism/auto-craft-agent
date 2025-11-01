@@ -85,12 +85,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     ];
     
-    // Generation configuration with defaults
+    // Generation configuration with defaults - reduced maxOutputTokens to prevent limit errors
     const generationConfig = {
       temperature: temperature ?? 0.9, // Higher temperature reduces recitation
       topP: topP ?? 0.95,
       topK: topK ?? 40,
-      maxOutputTokens: maxOutputTokens ?? 8192,
+      maxOutputTokens: maxOutputTokens ?? 4096, // Reduced from 8192 to prevent token limit errors
     };
     
     const model = genAI.getGenerativeModel({ 
@@ -154,8 +154,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             throw new Error('Content was blocked by safety filters. Try rephrasing your request.');
           }
           
+          // Handle MAX_TOKENS with automatic retry
           if (finishReason === 'MAX_TOKENS') {
-            throw new Error('Response exceeded maximum token limit. Try breaking down your request into smaller parts.');
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`Retrying due to MAX_TOKENS (attempt ${retryCount}/${maxRetries}) with reduced output limit`);
+              
+              // Retry with reduced token limit
+              const retryConfig = {
+                ...generationConfig,
+                maxOutputTokens: Math.floor((generationConfig.maxOutputTokens || 4096) * 0.6) // Reduce by 40%
+              };
+              
+              const retryModel = genAI.getGenerativeModel({ 
+                model: modelName,
+                safetySettings,
+                generationConfig: retryConfig
+              });
+              
+              const retryResult = await retryModel.generateContent(prompt);
+              const retryResponse = await retryResult.response;
+              const text = retryResponse.text();
+              
+              console.log('Successfully generated content after MAX_TOKENS retry');
+              return res.status(200).json({ 
+                text: text + '\n\n_Note: Response was truncated to fit within token limits._', 
+                retried: true, 
+                retryCount,
+                truncated: true 
+              });
+            } else {
+              throw new Error('Response exceeded maximum token limit. Try asking for a more concise answer or breaking your request into smaller parts.');
+            }
           }
         }
         

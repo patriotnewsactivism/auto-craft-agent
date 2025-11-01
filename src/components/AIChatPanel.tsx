@@ -74,31 +74,29 @@ export function AIChatPanel({
     setIsTyping(true);
 
     try {
-      // Build context-aware prompt
+      // Build context-aware prompt - limited to prevent token limit errors
       let contextInfo = '';
       
       if (currentFile) {
-        contextInfo += `\n\n**Current File:** \`${currentFile.path}\`\n`;
-        contextInfo += `**File Content (excerpt):**\n\`\`\`\n${currentFile.content.substring(0, 1000)}\n\`\`\`\n`;
+        // Limit file content to 300 chars to prevent token limit issues
+        contextInfo += `\n\nCurrent file: \`${currentFile.path}\`\n`;
+        const excerpt = currentFile.content.substring(0, 300);
+        if (excerpt.length > 0) {
+          contextInfo += `Content: \`\`\`\n${excerpt}${currentFile.content.length > 300 ? '...' : ''}\n\`\`\`\n`;
+        }
       }
 
       if (allFiles.length > 0) {
-        contextInfo += `\n**Project Structure:** ${allFiles.length} files\n`;
-        contextInfo += `Files: ${allFiles.map(f => f.path).join(', ')}\n`;
+        // Only list first 10 files to keep context small
+        const fileList = allFiles.slice(0, 10).map(f => f.path).join(', ');
+        contextInfo += `\nProject: ${allFiles.length} files${allFiles.length > 10 ? ' (showing first 10)' : ''}: ${fileList}\n`;
       }
 
-      const enhancedPrompt = `You are an expert AI coding assistant with full context of the user's project.
+      const enhancedPrompt = `You are a helpful coding assistant.${contextInfo}
 
-${contextInfo}
+Question: ${userMessage.content}
 
-**User Question:** ${userMessage.content}
-
-Provide a helpful, concise, and actionable response. If suggesting code changes:
-1. Explain the approach
-2. Provide the code
-3. Explain why it's better
-
-Format code blocks with triple backticks and language tags.`;
+Provide a concise, helpful response. Use code blocks with triple backticks when showing code.`;
 
       const response = await aiService.generateCode(enhancedPrompt);
 
